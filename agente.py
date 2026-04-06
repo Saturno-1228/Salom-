@@ -67,22 +67,22 @@ Ejemplo de respuesta si solo saluda:
 NUNCA devuelvas texto fuera del JSON. Si razonas, hazlo mentalmente sin imprimirlo o en un campo "razonamiento" dentro del JSON.
 """
 
-def limpiar_respuesta_json(respuesta):
-    """Limpia la respuesta de la IA por si incluye etiquetas markdown como ```json"""
-    texto = respuesta.strip()
-    if texto.startswith("```json"):
-        texto = texto[7:]
-    elif texto.startswith("```"):
-        texto = texto[3:]
+import re
 
-    if texto.endswith("```"):
-        texto = texto[:-3]
+def limpiar_respuesta_json(respuesta):
+    """Extrae y limpia la respuesta JSON de la IA ignorando texto adicional como 'thought' o markdown."""
+    texto = respuesta.strip()
 
     # Limpiamos etiquetas think si las hay
     if "</think>" in texto:
         texto = texto.split("</think>")[-1].strip()
 
-    return texto.strip()
+    # Extraer estrictamente lo que está entre el primer '{' y el último '}'
+    match = re.search(r'\{.*\}', texto, re.DOTALL)
+    if match:
+        return match.group(0)
+
+    return texto
 
 def procesar_mensaje(mensaje_usuario):
     global _historial
