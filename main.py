@@ -176,27 +176,6 @@ def crear_gui():
     main_container = ctk.CTkFrame(root, fg_color="transparent", corner_radius=0)
     main_container.pack(fill="both", expand=True)
 
-    # --- SIDEBAR DERECHA (TERMINAL / LOGS) ---
-    right_sidebar_frame = ctk.CTkFrame(main_container, fg_color=color_fondo_sidebar, width=350, corner_radius=0)
-    # No la mostramos por defecto (estará oculta hasta usar toggle_right_sidebar)
-    right_sidebar_frame.pack_propagate(False)
-
-    lbl_terminal = ctk.CTkLabel(right_sidebar_frame, text="LOGS DEL SISTEMA", font=("Segoe UI", 16, "bold"), text_color=color_acento)
-    lbl_terminal.pack(pady=(20, 10))
-
-    terminal_text = ctk.CTkTextbox(
-        right_sidebar_frame,
-        font=("Consolas", 12),
-        fg_color=color_input,
-        text_color=color_texto,
-        wrap="word"
-    )
-    terminal_text.pack(fill="both", expand=True, padx=10, pady=(0, 20))
-    terminal_text.configure(state="disabled")
-
-    # Redirigir stdout al terminal_text
-    sys.stdout = StdoutRedirector(terminal_text)
-
     # --- SIDEBAR IZQUIERDA ---
     sidebar_frame = ctk.CTkFrame(main_container, fg_color=color_fondo_sidebar, width=260, corner_radius=0)
     sidebar_frame.pack(side="left", fill="y")
@@ -234,8 +213,31 @@ def crear_gui():
     nav_btn("Financiero", "finance", "finance")
 
     # --- MAIN CONTENT ---
+    # Lo empacamos después del sidebar izquierdo y ANTES del derecho
+    # Usando side="left" para que tome el espacio central restante.
     content_area = ctk.CTkFrame(main_container, fg_color=color_fondo_main, corner_radius=0)
-    content_area.pack(side="right", fill="both", expand=True)
+    content_area.pack(side="left", fill="both", expand=True)
+
+    # --- SIDEBAR DERECHA (TERMINAL / LOGS) ---
+    right_sidebar_frame = ctk.CTkFrame(main_container, fg_color=color_fondo_sidebar, width=350, corner_radius=0)
+    # No la mostramos por defecto (estará oculta hasta usar toggle_right_sidebar)
+    right_sidebar_frame.pack_propagate(False)
+
+    lbl_terminal = ctk.CTkLabel(right_sidebar_frame, text="LOGS DEL SISTEMA", font=("Segoe UI", 16, "bold"), text_color=color_acento)
+    lbl_terminal.pack(pady=(20, 10))
+
+    terminal_text = ctk.CTkTextbox(
+        right_sidebar_frame,
+        font=("Consolas", 12),
+        fg_color=color_input,
+        text_color=color_texto,
+        wrap="word"
+    )
+    terminal_text.pack(fill="both", expand=True, padx=10, pady=(0, 20))
+    terminal_text.configure(state="disabled")
+
+    # Redirigir stdout al terminal_text
+    sys.stdout = StdoutRedirector(terminal_text)
 
     # Top Bar (Botón Toggle Izquierdo y Derecho)
     top_bar = ctk.CTkFrame(content_area, fg_color=color_fondo_main, height=60, corner_radius=0)
@@ -355,6 +357,60 @@ def crear_gui():
         "Modo Concentración", "Abrir panel de control", "Apagar en 1 hora"
     ]
 
+    def ejecutar_comando_rapido(cmd):
+        import herramientas # Importamos aquí o nos aseguramos de que el import global se use.
+
+        # Mostramos en el chat la orden
+        root.after(0, update_chat_history, "user", f"[{cmd}]")
+        # Aseguramos thread-safety para actualizar la UI
+        root.after(0, show_view, "chat")
+
+        # Ejecutamos sin IA, despachando directamente a las herramientas
+        resultado = ""
+        texto_salome = ""
+        try:
+            if cmd == "Vaciar papelera":
+                resultado = herramientas.ejecutar_herramienta("vaciar_papelera", {})
+                texto_salome = "Papelera vaciada, Amo."
+            elif cmd == "Silenciar el PC":
+                resultado = herramientas.ejecutar_herramienta("silenciar_pc", {})
+                texto_salome = "PC silenciado exitosamente."
+            elif cmd == "Activar notificaciones":
+                resultado = herramientas.ejecutar_herramienta("gestionar_notificaciones", {"estado": "on"})
+                texto_salome = "Notificaciones activadas."
+            elif cmd == "Limpiar escritorio":
+                resultado = herramientas.ejecutar_herramienta("limpiar_escritorio", {})
+                texto_salome = "Escritorio limpiado rápidamente, mi Amo."
+            elif cmd == "Organizar Archivos":
+                resultado = herramientas.ejecutar_herramienta("organizar_archivos", {})
+                texto_salome = "He organizado sus archivos locales."
+            elif cmd == "Mostrar Estado del Bot":
+                resultado = herramientas.ejecutar_herramienta("mostrar_estado_bot", {})
+                texto_salome = "Verificando sistemas..."
+            elif cmd == "Modo Concentración":
+                resultado = herramientas.ejecutar_herramienta("gestionar_notificaciones", {"estado": "off"})
+                texto_salome = "Modo concentración activado. Notificaciones silenciadas."
+            elif cmd == "Abrir panel de control":
+                resultado = herramientas.ejecutar_herramienta("abrir_panel_control", {})
+                texto_salome = "Abriendo el panel de control ahora mismo."
+            elif cmd == "Apagar en 1 hora":
+                resultado = herramientas.ejecutar_herramienta("apagar_pc_tiempo", {"minutos": 60})
+                texto_salome = "Temporizador de apagado configurado para 1 hora."
+            else:
+                texto_salome = "Comando no reconocido de forma local."
+
+            print(f"[Sistema Local] Ejecución directa de: {cmd}. Resultado: {resultado}")
+
+            # Incorporar el resultado de la herramienta en la respuesta visual si procede
+            if resultado and cmd == "Mostrar Estado del Bot":
+                 root.after(0, update_chat_history, "bot", f"{texto_salome}\n[Resultado]: {resultado}")
+            else:
+                 root.after(0, update_chat_history, "bot", f"(Ejecución Local) {texto_salome}")
+
+        except Exception as e:
+            root.after(0, update_chat_history, "system", f"Error al ejecutar comando local: {e}")
+
+
     row = 0
     col = 0
     for cmd in comandos_rapidos:
@@ -370,7 +426,7 @@ def crear_gui():
             corner_radius=12,
             image=icons.get("commands"),
             compound="top", # Icono arriba, texto abajo
-            command=lambda c=cmd: [show_view("chat"), chat_entry.delete(0, tk.END), chat_entry.insert(0, c), on_enter()]
+            command=lambda c=cmd: threading.Thread(target=ejecutar_comando_rapido, args=(c,), daemon=True).start()
         )
         # Forzar wrap en el texto interno del botón
         btn._text_label.configure(wraplength=200, justify="center")
@@ -414,13 +470,14 @@ def crear_gui():
     # Variables de estado del Pomodoro
     pomodoro_running = {"state": False}
     pomodoro_time = {"seconds": 25 * 60} # 25 minutos
+    pomodoro_after_id = {"id": None}
 
     def update_pomodoro():
         if pomodoro_running["state"] and pomodoro_time["seconds"] > 0:
             pomodoro_time["seconds"] -= 1
             mins, secs = divmod(pomodoro_time["seconds"], 60)
             lbl_pomodoro_time.configure(text=f"{mins:02d}:{secs:02d}")
-            root.after(1000, update_pomodoro)
+            pomodoro_after_id["id"] = root.after(1000, update_pomodoro)
         elif pomodoro_time["seconds"] == 0:
             pomodoro_running["state"] = False
             print("¡Tiempo de Pomodoro terminado!")
@@ -434,9 +491,15 @@ def crear_gui():
 
     def pause_pomodoro():
         pomodoro_running["state"] = False
+        if pomodoro_after_id["id"]:
+            root.after_cancel(pomodoro_after_id["id"])
+            pomodoro_after_id["id"] = None
 
     def reset_pomodoro():
         pomodoro_running["state"] = False
+        if pomodoro_after_id["id"]:
+            root.after_cancel(pomodoro_after_id["id"])
+            pomodoro_after_id["id"] = None
         pomodoro_time["seconds"] = 25 * 60
         lbl_pomodoro_time.configure(text="25:00")
 
