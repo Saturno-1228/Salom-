@@ -111,10 +111,13 @@ def crear_gui():
 if __name__ == "__main__":
     print("--- Salomé está despertando (Modo Texto) ---")
     
-    # 1. Activamos la vigilancia automática de archivos
+    # 1. Organizamos los archivos existentes primero
+    organizador.organizar_archivos_existentes()
+
+    # 2. Activamos la vigilancia automática de archivos
     observador = organizador.iniciar_vigilancia()
     
-    # 2. Activamos la escucha de teclado
+    # 3. Activamos la escucha de teclado
     print("--- Listo. Presione F4 para abrir/cerrar la consola de texto de Salomé. ---")
     print("--- Presione Ctrl+C en esta terminal para apagar el sistema completamente. ---")
 
