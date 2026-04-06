@@ -1,10 +1,10 @@
 import os
+import sys
 import tkinter as tk
 import customtkinter as ctk
 from PIL import Image
 from pynput import keyboard
 import threading
-import os
 # import audio_manager  # Sus oídos (Desactivado temporalmente por errores, se usa texto en su lugar)
 import organizador    # Sus manos automáticas
 import agente         # Su nuevo cerebro
@@ -34,10 +34,34 @@ root = None
 gui_visible = False
 chat_history_text = None
 sidebar_frame = None
+right_sidebar_frame = None
 main_content_frame = None
 sidebar_expanded = True
+right_sidebar_expanded = False
 views = {}
 icons = {}
+terminal_text = None
+
+class StdoutRedirector:
+    """Redirige sys.stdout a la caja de texto de terminal de la GUI"""
+    def __init__(self, text_widget):
+        self.text_widget = text_widget
+        self.original_stdout = sys.stdout
+
+    def write(self, string):
+        self.original_stdout.write(string)
+        if self.text_widget and root:
+            # Insertar en la caja de texto de forma segura desde cualquier hilo
+            root.after(0, self._append_text, string)
+
+    def _append_text(self, string):
+        self.text_widget.configure(state="normal")
+        self.text_widget.insert(tk.END, string)
+        self.text_widget.see(tk.END)
+        self.text_widget.configure(state="disabled")
+
+    def flush(self):
+        self.original_stdout.flush()
 
 def load_icons():
     """Carga los iconos para la interfaz"""
@@ -67,19 +91,15 @@ def update_chat_history(role, text):
 
 def procesar_orden_texto(texto):
     if texto.strip():
-        # print(f"\nAmo dice: {texto}")
         # Muestra en el historial
         root.after(0, update_chat_history, "user", texto)
         # Usar el agente para procesar el comando de texto
-        # Redirigimos el print interno temporalmente si quisieramos,
-        # pero como el agente hace prints, los enviamos a consola.
-        # Idealmente el agente retornaría la respuesta.
-        # Por ahora asumimos que el agente responde y registramos el proceso.
         try:
-            # TODO: Idealmente agente.procesar_mensaje debería devolver el texto
-            # Para mostrarlo en el historial
-            agente.procesar_mensaje(texto)
-            root.after(0, update_chat_history, "bot", "He procesado la orden. (Ver consola para detalles completos si los hay)")
+            respuesta = agente.procesar_mensaje(texto)
+            if respuesta:
+                root.after(0, update_chat_history, "bot", respuesta)
+            else:
+                root.after(0, update_chat_history, "bot", "He procesado la orden, pero no tengo una respuesta verbal.")
         except Exception as e:
             root.after(0, update_chat_history, "system", f"Error procesando: {e}")
 
@@ -107,6 +127,15 @@ def toggle_sidebar():
         sidebar_frame.pack(side="left", fill="y")
         sidebar_expanded = True
 
+def toggle_right_sidebar():
+    global right_sidebar_expanded, right_sidebar_frame
+    if right_sidebar_expanded:
+        right_sidebar_frame.pack_forget()
+        right_sidebar_expanded = False
+    else:
+        right_sidebar_frame.pack(side="right", fill="y")
+        right_sidebar_expanded = True
+
 def show_view(view_name):
     for name, frame in views.items():
         if name == view_name:
@@ -115,7 +144,7 @@ def show_view(view_name):
             frame.pack_forget()
 
 def crear_gui():
-    global root, gui_visible, chat_history_text, sidebar_frame, main_content_frame, views
+    global root, gui_visible, chat_history_text, sidebar_frame, right_sidebar_frame, main_content_frame, views, terminal_text
 
     root = ctk.CTk()
     root.title("Salomé - Interfaz de Control")
@@ -147,7 +176,28 @@ def crear_gui():
     main_container = ctk.CTkFrame(root, fg_color="transparent", corner_radius=0)
     main_container.pack(fill="both", expand=True)
 
-    # --- SIDEBAR ---
+    # --- SIDEBAR DERECHA (TERMINAL / LOGS) ---
+    right_sidebar_frame = ctk.CTkFrame(main_container, fg_color=color_fondo_sidebar, width=350, corner_radius=0)
+    # No la mostramos por defecto (estará oculta hasta usar toggle_right_sidebar)
+    right_sidebar_frame.pack_propagate(False)
+
+    lbl_terminal = ctk.CTkLabel(right_sidebar_frame, text="LOGS DEL SISTEMA", font=("Segoe UI", 16, "bold"), text_color=color_acento)
+    lbl_terminal.pack(pady=(20, 10))
+
+    terminal_text = ctk.CTkTextbox(
+        right_sidebar_frame,
+        font=("Consolas", 12),
+        fg_color=color_input,
+        text_color=color_texto,
+        wrap="word"
+    )
+    terminal_text.pack(fill="both", expand=True, padx=10, pady=(0, 20))
+    terminal_text.configure(state="disabled")
+
+    # Redirigir stdout al terminal_text
+    sys.stdout = StdoutRedirector(terminal_text)
+
+    # --- SIDEBAR IZQUIERDA ---
     sidebar_frame = ctk.CTkFrame(main_container, fg_color=color_fondo_sidebar, width=260, corner_radius=0)
     sidebar_frame.pack(side="left", fill="y")
     sidebar_frame.pack_propagate(False)
@@ -187,11 +237,11 @@ def crear_gui():
     content_area = ctk.CTkFrame(main_container, fg_color=color_fondo_main, corner_radius=0)
     content_area.pack(side="right", fill="both", expand=True)
 
-    # Top Bar (Botón Toggle)
+    # Top Bar (Botón Toggle Izquierdo y Derecho)
     top_bar = ctk.CTkFrame(content_area, fg_color=color_fondo_main, height=60, corner_radius=0)
     top_bar.pack(side="top", fill="x")
 
-    btn_toggle = ctk.CTkButton(
+    btn_toggle_left = ctk.CTkButton(
         top_bar,
         text="",
         image=icons.get("menu"),
@@ -201,7 +251,21 @@ def crear_gui():
         hover_color=color_input,
         command=toggle_sidebar
     )
-    btn_toggle.pack(side="left", padx=20, pady=10)
+    btn_toggle_left.pack(side="left", padx=20, pady=10)
+
+    btn_toggle_right = ctk.CTkButton(
+        top_bar,
+        text="Terminal / Logs",
+        font=font_bold,
+        fg_color=color_input,
+        hover_color=color_acento,
+        text_color=color_texto,
+        width=140,
+        height=40,
+        corner_radius=8,
+        command=toggle_right_sidebar
+    )
+    btn_toggle_right.pack(side="right", padx=20, pady=10)
 
     # Contenedor de Vistas
     view_container = ctk.CTkFrame(content_area, fg_color="transparent")
@@ -338,17 +402,49 @@ def crear_gui():
     lbl_wellness = ctk.CTkLabel(wellness_view, text="Panel de Bienestar", font=font_title, text_color=color_texto)
     lbl_wellness.pack(pady=(0, 20), anchor="w")
 
-    # Esqueleto Pomodoro
+    # Temporizador Pomodoro
     pomodoro_frame = ctk.CTkFrame(wellness_view, fg_color=color_input, corner_radius=15)
     pomodoro_frame.pack(fill="x", pady=10, padx=20)
 
     ctk.CTkLabel(pomodoro_frame, text="Temporizador Pomodoro", font=font_bold, text_color=color_texto).pack(pady=10)
-    ctk.CTkLabel(pomodoro_frame, text="25:00", font=("Segoe UI", 48, "bold"), text_color=color_acento).pack(pady=20)
+
+    lbl_pomodoro_time = ctk.CTkLabel(pomodoro_frame, text="25:00", font=("Segoe UI", 48, "bold"), text_color=color_acento)
+    lbl_pomodoro_time.pack(pady=20)
+
+    # Variables de estado del Pomodoro
+    pomodoro_running = {"state": False}
+    pomodoro_time = {"seconds": 25 * 60} # 25 minutos
+
+    def update_pomodoro():
+        if pomodoro_running["state"] and pomodoro_time["seconds"] > 0:
+            pomodoro_time["seconds"] -= 1
+            mins, secs = divmod(pomodoro_time["seconds"], 60)
+            lbl_pomodoro_time.configure(text=f"{mins:02d}:{secs:02d}")
+            root.after(1000, update_pomodoro)
+        elif pomodoro_time["seconds"] == 0:
+            pomodoro_running["state"] = False
+            print("¡Tiempo de Pomodoro terminado!")
+            # Opcional: mostrar notificación o reproducir sonido
+            pomodoro_time["seconds"] = 25 * 60 # Reset
+
+    def start_pomodoro():
+        if not pomodoro_running["state"]:
+            pomodoro_running["state"] = True
+            update_pomodoro()
+
+    def pause_pomodoro():
+        pomodoro_running["state"] = False
+
+    def reset_pomodoro():
+        pomodoro_running["state"] = False
+        pomodoro_time["seconds"] = 25 * 60
+        lbl_pomodoro_time.configure(text="25:00")
 
     btn_frame = ctk.CTkFrame(pomodoro_frame, fg_color="transparent")
     btn_frame.pack(pady=10)
-    ctk.CTkButton(btn_frame, text="Iniciar", font=font_base, fg_color=color_acento, hover_color=color_acento_hover, width=100).pack(side="left", padx=10)
-    ctk.CTkButton(btn_frame, text="Pausar", font=font_base, fg_color="#555555", hover_color="#777777", width=100).pack(side="left", padx=10)
+    ctk.CTkButton(btn_frame, text="Iniciar", font=font_base, fg_color=color_acento, hover_color=color_acento_hover, width=100, command=start_pomodoro).pack(side="left", padx=10)
+    ctk.CTkButton(btn_frame, text="Pausar", font=font_base, fg_color="#555555", hover_color="#777777", width=100, command=pause_pomodoro).pack(side="left", padx=10)
+    ctk.CTkButton(btn_frame, text="Reiniciar", font=font_base, fg_color="#555555", hover_color="#777777", width=100, command=reset_pomodoro).pack(side="left", padx=10)
 
     # --- VISTA 5: FINANCIERO ---
     finance_view = ctk.CTkFrame(view_container, fg_color="transparent")

@@ -118,6 +118,26 @@ class ManejadorArchivos(FileSystemEventHandler):
         if not event.is_directory:
             organizar_archivo(event.dest_path)
 
+def limpiar_escritorio():
+    """
+    Fuerza la limpieza del escritorio, moviendo todos los archivos sueltos a la Carpeta de Trabajo.
+    """
+    escritorio = os.path.join(USUARIO_DIR, "Desktop")
+    if os.path.exists(escritorio):
+        archivos_movidos = 0
+        for item in os.listdir(escritorio):
+            ruta_completa = os.path.join(escritorio, item)
+            if os.path.isfile(ruta_completa):
+                organizar_archivo(ruta_completa, es_nuevo=False)
+                archivos_movidos += 1
+        return f"Escritorio limpiado. {archivos_movidos} archivos organizados."
+    return "No se pudo acceder al escritorio."
+
+def organizar_archivos_existentes_manual():
+    """Llamado manual por el usuario para forzar la organización."""
+    organizar_archivos_existentes()
+    return "Archivos existentes organizados en las carpetas vigiladas."
+
 def organizar_archivos_existentes():
     """
     Escanea las carpetas especificadas buscando archivos (no subcarpetas)

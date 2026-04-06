@@ -98,3 +98,45 @@ def abrir_youtube(consulta=None):
             return "Abriendo YouTube."
     except Exception as e:
         return f"Error al abrir YouTube: {e}"
+
+def silenciar_pc():
+    """Silencia el volumen general de Windows usando un comando nircmd o un script VBScript."""
+    if os.name != 'nt':
+        return "El silenciamiento del PC solo está implementado para Windows."
+
+    try:
+        # Usamos un script de PowerShell para silenciar (Mute)
+        script = "$obj = new-object -com wscript.shell; $obj.SendKeys([char]173)"
+        subprocess.run(["powershell", "-Command", script], capture_output=True)
+        return "Volumen del PC silenciado (tecla mute presionada de forma virtual)."
+    except Exception as e:
+        return f"Error al intentar silenciar el PC: {e}"
+
+def mostrar_estado_bot():
+    """Devuelve un resumen simple del estado del bot."""
+    # Podría extenderse con uso de RAM, CPU, etc.
+    return "Estado del bot Salomé: Operativa, sistemas de vigilancia activos, esperando órdenes."
+
+def abrir_panel_control():
+    """Abre el panel de control de Windows."""
+    if os.name != 'nt':
+        return "Esta función solo está disponible en Windows."
+
+    try:
+        subprocess.Popen("control", shell=True)
+        return "Panel de Control de Windows abierto."
+    except Exception as e:
+        return f"Error abriendo el panel de control: {e}"
+
+def apagar_pc_tiempo(minutos=60):
+    """Programa el apagado del PC en N minutos."""
+    if os.name != 'nt':
+        return "Esta función solo está disponible en Windows."
+
+    try:
+        segundos = int(minutos) * 60
+        # shutdown /s (shutdown) /t (time)
+        subprocess.run(['shutdown', '/s', '/t', str(segundos)], capture_output=True)
+        return f"PC programado para apagarse en {minutos} minutos."
+    except Exception as e:
+        return f"Error al programar el apagado: {e}"

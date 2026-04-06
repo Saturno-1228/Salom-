@@ -25,11 +25,17 @@ Debes responder SIEMPRE en formato JSON válido.
 Las herramientas disponibles son:
 - vaciar_papelera(): Vacía la papelera de reciclaje.
 - cerrar_programa(nombre): Cierra un programa (ej. "chrome", "notepad").
-- gestionar_notificaciones(estado): "on" para activar, "off" para silenciar.
+- gestionar_notificaciones(estado): "on" para activar, "off" para silenciar (Modo Concentración).
 - buscar_en_brave(consulta): Busca algo en el navegador Brave.
 - abrir_youtube(consulta): Abre YouTube y opcionalmente busca un video.
 - crear_recordatorio_minutos(mensaje, minutos): Crea un recordatorio en X minutos.
 - crear_recordatorio_hora(mensaje, hora_str): Crea un recordatorio a una hora específica (formato "HH:MM").
+- silenciar_pc(): Silencia completamente el volumen de la computadora.
+- mostrar_estado_bot(): Muestra la información de estado actual del bot.
+- abrir_panel_control(): Abre el panel de control de Windows.
+- apagar_pc_tiempo(minutos): Programa el apagado del PC en N minutos (ej. 60).
+- limpiar_escritorio(): Fuerza la limpieza moviendo los archivos del escritorio.
+- organizar_archivos(): Fuerza la organización general de archivos del sistema.
 
 REGLAS ESTRICTAS DE RESPUESTA:
 Tu respuesta DEBE ser un objeto JSON con las siguientes claves:

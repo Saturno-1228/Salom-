@@ -1,5 +1,6 @@
 import windows_tools
 import recordatorios
+import organizador
 
 def ejecutar_herramienta(nombre_herramienta, argumentos):
     """
@@ -15,6 +16,12 @@ def ejecutar_herramienta(nombre_herramienta, argumentos):
         "abrir_youtube": windows_tools.abrir_youtube,
         "crear_recordatorio_minutos": recordatorios.crear_recordatorio_minutos,
         "crear_recordatorio_hora": recordatorios.crear_recordatorio_hora,
+        "silenciar_pc": windows_tools.silenciar_pc,
+        "mostrar_estado_bot": windows_tools.mostrar_estado_bot,
+        "abrir_panel_control": windows_tools.abrir_panel_control,
+        "apagar_pc_tiempo": windows_tools.apagar_pc_tiempo,
+        "limpiar_escritorio": organizador.limpiar_escritorio,
+        "organizar_archivos": organizador.organizar_archivos_existentes_manual,
     }
 
     if nombre_herramienta not in herramientas_permitidas:
