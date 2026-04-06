@@ -71,26 +71,77 @@ Ejemplo de respuesta si solo saluda:
   "argumentos_herramienta": null
 }
 
+- obtener_reporte_salud(): Muestra uso de CPU y RAM.
+- listar_procesos_pesados(): Muestra los procesos que consumen más memoria.
+- actualizar_bot(): Realiza un pull desde git.
+- buscar_y_resumir(consulta): Busca en la web una consulta y devuelve un resumen.
+- modo_panico(): Cierra navegadores y silencia el PC de inmediato.
+- crear_nota_rapida(texto, titulo): Crea una nota de texto.
+
 NUNCA devuelvas texto fuera del JSON. Si razonas, hazlo mentalmente sin imprimirlo o en un campo "razonamiento" dentro del JSON.
 """
+
+def detectar_intencion_local(mensaje):
+    """Analiza palabras clave para ejecutar comandos locales sin usar la IA y ahorrar tokens."""
+    texto = mensaje.lower()
+
+    # Comandos directos y sencillos
+    if "vaciar" in texto and "papelera" in texto:
+        return {"herramienta": "vaciar_papelera", "args": {}, "respuesta": "Sí, Amo. Vaciando la papelera inmediatamente."}
+    if "limpiar" in texto and "escritorio" in texto:
+        return {"herramienta": "limpiar_escritorio", "args": {}, "respuesta": "Limpiando su escritorio, Amo."}
+    if "silenciar" in texto and ("pc" in texto or "computadora" in texto or "ordenador" in texto):
+        return {"herramienta": "silenciar_pc", "args": {}, "respuesta": "Silenciando el sistema, Amo."}
+    if "modo pánico" in texto or "modo panico" in texto:
+        return {"herramienta": "modo_panico", "args": {}, "respuesta": "¡Modo pánico activado! Cerrando navegadores y silenciando el PC."}
+    if "reporte de salud" in texto or ("uso" in texto and ("cpu" in texto or "ram" in texto)):
+         return {"herramienta": "obtener_reporte_salud", "args": {}, "respuesta": "Consultando los signos vitales del sistema, Amo."}
+    if "actualizar bot" in texto or "git pull" in texto:
+        return {"herramienta": "actualizar_bot", "args": {}, "respuesta": "Iniciando actualización desde el repositorio, Amo."}
+
+    return None
 
 def limpiar_respuesta_json(respuesta):
     """Extrae y limpia la respuesta JSON de la IA ignorando texto extra como 'thought' y etiquetas markdown."""
     texto = respuesta.strip()
 
-    # Limpiamos etiquetas think si las hay
-    if "</think>" in texto:
-        texto = texto.split("</think>")[-1].strip()
+    # Limpiamos etiquetas think y xml genericas si las hay
+    texto = re.sub(r'<think>.*?</think>', '', texto, flags=re.DOTALL)
+
+    # Eliminar bloques de codigo markdown completos y solo quedar con el contenido
+    texto = re.sub(r'```(?:json)?\n?(.*?)\n?```', r'\1', texto, flags=re.DOTALL)
 
     # Extraer estrictamente lo que está entre el primer '{' o '[' y el último '}' o ']'
     match = re.search(r'(\{.*\}|\[.*\])', texto, re.DOTALL)
     if match:
-        return match.group(1)
+        return match.group(1).strip()
 
-    return texto
+    return texto.strip()
 
 def procesar_mensaje(mensaje_usuario):
     global _historial
+
+    # Árbitro: Comprobar intenciones locales primero
+    intencion = detectar_intencion_local(mensaje_usuario)
+    if intencion:
+        print(f"[Árbitro] Intención local detectada: {intencion['herramienta']}")
+        respuesta_texto = intencion["respuesta"]
+        herramienta = intencion["herramienta"]
+        args = intencion["args"]
+
+        print(f"\nSalomé: {respuesta_texto}")
+        _historial.append({"role": "user", "content": mensaje_usuario})
+        _historial.append({"role": "assistant", "content": json.dumps({"respuesta_texto": respuesta_texto, "herramienta_a_ejecutar": herramienta, "argumentos_herramienta": args})})
+
+        resultado_herramienta = herramientas.ejecutar_herramienta(herramienta, args)
+        print(f"[Sistema] Resultado: {resultado_herramienta}")
+        _historial.append({"role": "system", "content": f"Resultado de la herramienta {herramienta}: {resultado_herramienta}"})
+
+        # Opcional: si la herramienta devuelve texto útil (ej. reporte de salud), podemos añadirlo a la respuesta
+        if herramienta in ["obtener_reporte_salud", "listar_procesos_pesados", "actualizar_bot", "modo_panico", "buscar_y_resumir"]:
+            respuesta_texto += f"\n\n[Resultado]: {resultado_herramienta}"
+
+        return respuesta_texto
 
     # Agregamos mensaje del usuario al historial
     _historial.append({"role": "user", "content": mensaje_usuario})
