@@ -1,0 +1,13 @@
+# Ignorar secretos y contraseñas
+.env
+
+# Ignorar la carpeta del entorno virtual (Es muy pesada)
+venv/
+env/
+
+# Ignorar audios temporales
+temp_audio.wav
+
+# Ignorar archivos temporales de Python
+__pycache__/
+*.pyc
