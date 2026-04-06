@@ -74,6 +74,8 @@ def load_icons():
         icons["finance"] = ctk.CTkImage(light_image=Image.open(os.path.join(icon_path, "finance.png")), dark_image=Image.open(os.path.join(icon_path, "finance.png")), size=(20, 20))
         icons["send"] = ctk.CTkImage(light_image=Image.open(os.path.join(icon_path, "send.png")), dark_image=Image.open(os.path.join(icon_path, "send.png")), size=(20, 20))
         icons["menu"] = ctk.CTkImage(light_image=Image.open(os.path.join(icon_path, "menu.png")), dark_image=Image.open(os.path.join(icon_path, "menu.png")), size=(24, 24))
+        if os.path.exists(os.path.join(icon_path, "plus.png")):
+            icons["plus"] = ctk.CTkImage(light_image=Image.open(os.path.join(icon_path, "plus.png")), dark_image=Image.open(os.path.join(icon_path, "plus.png")), size=(24, 24))
     except Exception as e:
         print(f"Error loading icons: {e}")
 
@@ -83,7 +85,8 @@ def update_chat_history(role, text):
         if role == "user":
             chat_history_text.insert(tk.END, f"Tú: {text}\n\n", "user")
         elif role == "bot":
-            chat_history_text.insert(tk.END, f"Salomé: {text}\n\n", "bot")
+            chat_history_text.insert(tk.END, "Salomé: ", "bot_name")
+            chat_history_text.insert(tk.END, f"{text}\n\n", "bot_text")
         elif role == "system":
             chat_history_text.insert(tk.END, f"[Sistema]: {text}\n\n", "system")
         chat_history_text.see(tk.END)
@@ -136,6 +139,12 @@ def toggle_right_sidebar():
         right_sidebar_frame.pack(side="right", fill="y")
         right_sidebar_expanded = True
 
+def toggle_quick_panel():
+    if quick_panel_frame.winfo_ismapped():
+        quick_panel_frame.pack_forget()
+    else:
+        quick_panel_frame.pack(fill="x", pady=(0, 10), before=input_frame)
+
 def show_view(view_name):
     for name, frame in views.items():
         if name == view_name:
@@ -155,8 +164,9 @@ def crear_gui():
     # Variables de diseño empresarial y oscuro
     color_fondo_main = "#181818"    # Fondo principal minimalista
     color_fondo_sidebar = "#111111" # Fondo lateral más oscuro
-    color_acento = "#D32F2F"        # Rojo profesional
-    color_acento_hover = "#B71C1C"
+    color_acento = "#E91E63"        # Rosa fuerte
+    color_acento_hover = "#C2185B"
+    color_nombre_bot = "#F48FB1"    # Rosa pastel suave
     color_texto = "#E0E0E0"         # Gris claro para menor fatiga visual
     color_texto_oscuro = "#A0A0A0"
     color_input = "#212121"         # Fondo inputs y cards
@@ -186,7 +196,7 @@ def crear_gui():
 
     terminal_text = ctk.CTkTextbox(
         right_sidebar_frame,
-        font=("Consolas", 12),
+        font=("Consolas", 18),
         fg_color=color_input,
         text_color=color_texto,
         wrap="word"
@@ -194,8 +204,9 @@ def crear_gui():
     terminal_text.pack(fill="both", expand=True, padx=10, pady=(0, 20))
     terminal_text.configure(state="disabled")
 
-    # Redirigir stdout al terminal_text
+    # Redirigir stdout y stderr al terminal_text
     sys.stdout = StdoutRedirector(terminal_text)
+    sys.stderr = StdoutRedirector(terminal_text)
 
     # --- SIDEBAR IZQUIERDA ---
     sidebar_frame = ctk.CTkFrame(main_container, fg_color=color_fondo_sidebar, width=260, corner_radius=0)
@@ -203,7 +214,7 @@ def crear_gui():
     sidebar_frame.pack_propagate(False)
 
     # Título Sidebar
-    lbl_title = ctk.CTkLabel(sidebar_frame, text="SALOMÉ", font=font_title, text_color=color_acento)
+    lbl_title = ctk.CTkLabel(sidebar_frame, text="SALOMÉ", font=font_title, text_color=color_nombre_bot)
     lbl_title.pack(pady=(30, 40))
 
     # Botones de Navegación
@@ -225,7 +236,6 @@ def crear_gui():
         return btn
 
     nav_btn("Chat / Historial", "chat", "chat")
-    nav_btn("Comandos Rápidos", "comandos", "commands")
     nav_btn("Administración", "admin", "admin")
 
     # Nuevas secciones
@@ -235,7 +245,9 @@ def crear_gui():
 
     # --- MAIN CONTENT ---
     content_area = ctk.CTkFrame(main_container, fg_color=color_fondo_main, corner_radius=0)
-    content_area.pack(side="right", fill="both", expand=True)
+    # Empacar el content area al lado izquierdo (o derecho del sidebar) pero permitiendo que el right_sidebar ocupe su lugar a la derecha.
+    # Dado que right_sidebar es empaquetado y desempaquetado con side="right", content_area debe empaquetarse con side="left" para tomar todo el espacio sobrante en medio.
+    content_area.pack(side="left", fill="both", expand=True)
 
     # Top Bar (Botón Toggle Izquierdo y Derecho)
     top_bar = ctk.CTkFrame(content_area, fg_color=color_fondo_main, height=60, corner_radius=0)
@@ -292,13 +304,87 @@ def crear_gui():
     # Tags configurables en CTkTextbox
     # En CustomTkinter no se permite cambiar font via tag_config por compatibilidad de escalado
     chat_history_text.tag_config("user", foreground="#FFFFFF")
-    chat_history_text.tag_config("bot", foreground=color_acento)
+    chat_history_text.tag_config("bot_name", foreground=color_nombre_bot)
+    chat_history_text.tag_config("bot_text", foreground="#FFFFFF")
     chat_history_text.tag_config("system", foreground=color_texto_oscuro)
     chat_history_text.configure(state="disabled")
 
+    # Mini-Panel de Acceso Rápido (Oculto por defecto)
+    global quick_panel_frame
+    quick_panel_frame = ctk.CTkFrame(chat_view, fg_color=color_input, corner_radius=12, height=220)
+
+    # Cabecera del panel para título y botón de cierre
+    panel_header = ctk.CTkFrame(quick_panel_frame, fg_color="transparent")
+    panel_header.pack(fill="x", padx=10, pady=(10, 0))
+    ctk.CTkLabel(panel_header, text="Comandos Rápidos", font=("Segoe UI", 16, "bold"), text_color=color_texto).pack(side="left")
+    ctk.CTkButton(panel_header, text="X", font=("Segoe UI", 16, "bold"), fg_color="transparent", hover_color="#444444", text_color=color_texto, width=30, height=30, command=toggle_quick_panel).pack(side="right")
+
+    # Pestañas
+    tabview_cmds = ctk.CTkTabview(quick_panel_frame, fg_color="transparent", text_color=color_texto, segmented_button_fg_color=color_fondo_main, segmented_button_selected_color=color_acento, segmented_button_selected_hover_color=color_acento_hover)
+    tabview_cmds.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+
+    tabview_cmds.add("Limpieza")
+    tabview_cmds.add("Administración")
+    tabview_cmds.add("Entretenimiento")
+    tabview_cmds.add("Bienestar")
+
+    # Función auxiliar para crear botones dentro del tabview
+    def create_cmd_btn(parent, text, command_text):
+        btn = ctk.CTkButton(
+            parent,
+            text=text,
+            font=font_base,
+            fg_color=color_fondo_main,
+            hover_color=color_acento,
+            text_color=color_texto,
+            height=40,
+            corner_radius=8,
+            command=lambda c=command_text: [chat_entry.delete(0, tk.END), chat_entry.insert(0, c), on_enter()]
+        )
+        return btn
+
+    # Limpieza
+    frame_limpieza = ctk.CTkScrollableFrame(tabview_cmds.tab("Limpieza"), fg_color="transparent", orientation="horizontal", height=80)
+    frame_limpieza.pack(fill="both", expand=True)
+    create_cmd_btn(frame_limpieza, "Vaciar papelera", "Vaciar papelera").pack(side="left", padx=10, pady=10)
+    create_cmd_btn(frame_limpieza, "Limpiar escritorio", "Limpiar escritorio").pack(side="left", padx=10, pady=10)
+
+    # Administración
+    frame_admin = ctk.CTkScrollableFrame(tabview_cmds.tab("Administración"), fg_color="transparent", orientation="horizontal", height=80)
+    frame_admin.pack(fill="both", expand=True)
+    create_cmd_btn(frame_admin, "Apagar en 1 hora", "Apagar en 1 hora").pack(side="left", padx=10, pady=10)
+    create_cmd_btn(frame_admin, "Mostrar Estado", "Mostrar Estado del Bot").pack(side="left", padx=10, pady=10)
+
+    # Entretenimiento
+    frame_ent = ctk.CTkScrollableFrame(tabview_cmds.tab("Entretenimiento"), fg_color="transparent", orientation="horizontal", height=80)
+    frame_ent.pack(fill="both", expand=True)
+    create_cmd_btn(frame_ent, "Abrir YouTube", "Abrir YouTube").pack(side="left", padx=10, pady=10)
+
+    # Bienestar
+    frame_bienestar = ctk.CTkScrollableFrame(tabview_cmds.tab("Bienestar"), fg_color="transparent", orientation="horizontal", height=80)
+    frame_bienestar.pack(fill="both", expand=True)
+    create_cmd_btn(frame_bienestar, "Modo Concentración", "Modo Concentración").pack(side="left", padx=10, pady=10)
+    create_cmd_btn(frame_bienestar, "Silenciar PC", "Silenciar el PC").pack(side="left", padx=10, pady=10)
+
     # Input Box
+    global input_frame
     input_frame = ctk.CTkFrame(chat_view, fg_color="transparent")
     input_frame.pack(fill="x")
+
+    btn_quick_actions = ctk.CTkButton(
+        input_frame,
+        text="+",
+        font=("Segoe UI", 24, "bold"),
+        fg_color=color_input,
+        hover_color=color_acento,
+        text_color=color_acento,
+        height=50,
+        width=50,
+        corner_radius=12,
+        image=icons.get("plus"),
+        command=lambda: toggle_quick_panel()
+    )
+    btn_quick_actions.pack(side="left", padx=(0, 10))
 
     chat_entry = ctk.CTkEntry(
         input_frame,
@@ -337,49 +423,6 @@ def crear_gui():
     )
     btn_send.pack(side="right")
 
-
-    # --- VISTA 2: COMANDOS RÁPIDOS ---
-    comandos_view = ctk.CTkFrame(view_container, fg_color="transparent")
-    views["comandos"] = comandos_view
-
-    lbl_cmds = ctk.CTkLabel(comandos_view, text="Comandos Rápidos", font=font_title, text_color=color_texto)
-    lbl_cmds.pack(pady=(0, 20), anchor="w")
-
-    # ScrollableFrame para comandos
-    scrollable_cmd_frame = ctk.CTkScrollableFrame(comandos_view, fg_color="transparent")
-    scrollable_cmd_frame.pack(fill="both", expand=True)
-
-    comandos_rapidos = [
-        "Vaciar papelera", "Silenciar el PC", "Activar notificaciones",
-        "Limpiar escritorio", "Organizar Archivos", "Mostrar Estado del Bot",
-        "Modo Concentración", "Abrir panel de control", "Apagar en 1 hora"
-    ]
-
-    row = 0
-    col = 0
-    for cmd in comandos_rapidos:
-        btn = ctk.CTkButton(
-            scrollable_cmd_frame,
-            text=cmd,
-            font=font_base,
-            fg_color=color_input,
-            hover_color=color_acento,
-            text_color=color_texto,
-            height=80,
-            width=220,
-            corner_radius=12,
-            image=icons.get("commands"),
-            compound="top", # Icono arriba, texto abajo
-            command=lambda c=cmd: [show_view("chat"), chat_entry.delete(0, tk.END), chat_entry.insert(0, c), on_enter()]
-        )
-        # Forzar wrap en el texto interno del botón
-        btn._text_label.configure(wraplength=200, justify="center")
-
-        btn.grid(row=row, column=col, padx=15, pady=15)
-        col += 1
-        if col > 2: # 3 columnas
-            col = 0
-            row += 1
 
     # --- VISTA 3: ADMINISTRACIÓN ---
     admin_view = ctk.CTkFrame(view_container, fg_color="transparent")
