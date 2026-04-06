@@ -1,8 +1,25 @@
+import os
+
+# Solución para Windows Python 3.8+: Cargar las DLLs de CUDA (cublas, cudnn) desde el entorno virtual (venv)
+if os.name == 'nt':
+    # Obtenemos la ruta base del entorno (site-packages) donde están instalados los paquetes de nvidia
+    import site
+    import glob
+
+    # site.getsitepackages() nos da la lista de directorios de paquetes (normalmente site-packages)
+    # Buscamos todas las carpetas 'nvidia/*/bin' dentro de site-packages para añadir sus DLLs
+    for site_package_dir in site.getsitepackages():
+        nvidia_bins = glob.glob(os.path.join(site_package_dir, 'nvidia', '*', 'bin'))
+        for bin_dir in nvidia_bins:
+            try:
+                os.add_dll_directory(bin_dir)
+            except Exception as e:
+                pass # Ignorar si hay algún problema con un directorio específico
+
 import sounddevice as sd
 import soundfile as sf
 import numpy as np
 from faster_whisper import WhisperModel
-import os
 import queue
 
 print("--- Inicializando oídos de Salomé (Procesamiento Local) ---")
