@@ -8,6 +8,7 @@ import threading
 # import audio_manager  # Sus oídos (Desactivado temporalmente por errores, se usa texto en su lugar)
 import organizador    # Sus manos automáticas
 import agente         # Su nuevo cerebro
+import herramientas   # Herramientas locales para comandos directos
 
 # Configuración de CustomTkinter
 ctk.set_appearance_mode("dark")
@@ -87,10 +88,27 @@ def update_chat_history(role, text):
         elif role == "bot":
             chat_history_text.insert(tk.END, "Salomé: ", "bot_name")
             chat_history_text.insert(tk.END, f"{text}\n\n", "bot_text")
+        elif role == "bot_local":
+            chat_history_text.insert(tk.END, "Salomé (Sistema Local): ", "bot_name")
+            chat_history_text.insert(tk.END, f"{text}\n\n", "bot_text")
         elif role == "system":
             chat_history_text.insert(tk.END, f"[Sistema]: {text}\n\n", "system")
         chat_history_text.see(tk.END)
         chat_history_text.configure(state="disabled")
+
+def ejecutar_comando_local(texto_usuario, herramienta, args=None):
+    """Ejecuta una herramienta localmente sin pasar por la IA para ahorrar tokens y latencia."""
+    if args is None:
+        args = {}
+
+    # Mostramos lo que el usuario "ordenó" al presionar el botón
+    root.after(0, update_chat_history, "user", texto_usuario)
+
+    try:
+        resultado = herramientas.ejecutar_herramienta(herramienta, args)
+        root.after(0, update_chat_history, "bot_local", f"Comando ejecutado. Resultado: {resultado}")
+    except Exception as e:
+        root.after(0, update_chat_history, "system", f"Error ejecutando localmente: {e}")
 
 def procesar_orden_texto(texto):
     if texto.strip():
@@ -329,7 +347,13 @@ def crear_gui():
     tabview_cmds.add("Bienestar")
 
     # Función auxiliar para crear botones dentro del tabview
-    def create_cmd_btn(parent, text, command_text):
+    # Ahora ejecuta los comandos localmente usando las herramientas directas.
+    # Para añadir nuevos botones:
+    # 1. Asegúrate de que la herramienta exista en herramientas.py (en su diccionario herramientas_permitidas).
+    # 2. Pasa los argumentos necesarios como un diccionario en `args`.
+    def create_cmd_btn(parent, text, herramienta, args=None):
+        if args is None:
+            args = {}
         btn = ctk.CTkButton(
             parent,
             text=text,
@@ -339,32 +363,34 @@ def crear_gui():
             text_color=color_texto,
             height=40,
             corner_radius=8,
-            command=lambda c=command_text: [chat_entry.delete(0, tk.END), chat_entry.insert(0, c), on_enter()]
+            command=lambda h=herramienta, a=args, t=text: threading.Thread(
+                target=ejecutar_comando_local, args=(t, h, a), daemon=True
+            ).start()
         )
         return btn
 
     # Limpieza
     frame_limpieza = ctk.CTkScrollableFrame(tabview_cmds.tab("Limpieza"), fg_color="transparent", orientation="horizontal", height=80)
     frame_limpieza.pack(fill="both", expand=True)
-    create_cmd_btn(frame_limpieza, "Vaciar papelera", "Vaciar papelera").pack(side="left", padx=10, pady=10)
-    create_cmd_btn(frame_limpieza, "Limpiar escritorio", "Limpiar escritorio").pack(side="left", padx=10, pady=10)
+    create_cmd_btn(frame_limpieza, "Vaciar papelera", "vaciar_papelera").pack(side="left", padx=10, pady=10)
+    create_cmd_btn(frame_limpieza, "Limpiar escritorio", "limpiar_escritorio").pack(side="left", padx=10, pady=10)
 
     # Administración
     frame_admin = ctk.CTkScrollableFrame(tabview_cmds.tab("Administración"), fg_color="transparent", orientation="horizontal", height=80)
     frame_admin.pack(fill="both", expand=True)
-    create_cmd_btn(frame_admin, "Apagar en 1 hora", "Apagar en 1 hora").pack(side="left", padx=10, pady=10)
-    create_cmd_btn(frame_admin, "Mostrar Estado", "Mostrar Estado del Bot").pack(side="left", padx=10, pady=10)
+    create_cmd_btn(frame_admin, "Apagar en 1 hora", "apagar_pc_tiempo", {"minutos": 60}).pack(side="left", padx=10, pady=10)
+    create_cmd_btn(frame_admin, "Mostrar Estado", "mostrar_estado_bot").pack(side="left", padx=10, pady=10)
 
     # Entretenimiento
     frame_ent = ctk.CTkScrollableFrame(tabview_cmds.tab("Entretenimiento"), fg_color="transparent", orientation="horizontal", height=80)
     frame_ent.pack(fill="both", expand=True)
-    create_cmd_btn(frame_ent, "Abrir YouTube", "Abrir YouTube").pack(side="left", padx=10, pady=10)
+    create_cmd_btn(frame_ent, "Abrir YouTube", "abrir_youtube").pack(side="left", padx=10, pady=10)
 
     # Bienestar
     frame_bienestar = ctk.CTkScrollableFrame(tabview_cmds.tab("Bienestar"), fg_color="transparent", orientation="horizontal", height=80)
     frame_bienestar.pack(fill="both", expand=True)
-    create_cmd_btn(frame_bienestar, "Modo Concentración", "Modo Concentración").pack(side="left", padx=10, pady=10)
-    create_cmd_btn(frame_bienestar, "Silenciar PC", "Silenciar el PC").pack(side="left", padx=10, pady=10)
+    create_cmd_btn(frame_bienestar, "Modo Concentración", "gestionar_notificaciones", {"estado": "off"}).pack(side="left", padx=10, pady=10)
+    create_cmd_btn(frame_bienestar, "Silenciar PC", "silenciar_pc").pack(side="left", padx=10, pady=10)
 
     # Input Box
     global input_frame
