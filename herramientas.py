@@ -22,6 +22,12 @@ def ejecutar_herramienta(nombre_herramienta, argumentos):
         "apagar_pc_tiempo": windows_tools.apagar_pc_tiempo,
         "limpiar_escritorio": organizador.limpiar_escritorio,
         "organizar_archivos": organizador.organizar_archivos_existentes_manual,
+        "obtener_reporte_salud": windows_tools.obtener_reporte_salud,
+        "listar_procesos_pesados": windows_tools.listar_procesos_pesados,
+        "actualizar_bot": windows_tools.actualizar_bot,
+        "buscar_y_resumir": windows_tools.buscar_y_resumir,
+        "modo_panico": windows_tools.modo_panico,
+        "crear_nota_rapida": organizador.crear_nota_rapida,
     }
 
     if nombre_herramienta not in herramientas_permitidas:

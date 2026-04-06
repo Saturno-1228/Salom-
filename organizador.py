@@ -138,6 +138,31 @@ def organizar_archivos_existentes_manual():
     organizar_archivos_existentes()
     return "Archivos existentes organizados en las carpetas vigiladas."
 
+def crear_nota_rapida(texto, titulo=None):
+    """Crea una nota rápida de texto en la Carpeta de Trabajo."""
+    if not os.path.exists(CARPETA_TRABAJO):
+        os.makedirs(CARPETA_TRABAJO)
+
+    if not titulo:
+        import datetime
+        titulo = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+    if not titulo.endswith(".txt"):
+        titulo += ".txt"
+
+    ruta_notas = os.path.join(CARPETA_TRABAJO, "Notas")
+    if not os.path.exists(ruta_notas):
+         os.makedirs(ruta_notas)
+
+    ruta_archivo = os.path.join(ruta_notas, titulo)
+
+    try:
+        with open(ruta_archivo, "w", encoding="utf-8") as f:
+            f.write(texto)
+        return f"Nota '{titulo}' creada con éxito en {ruta_notas}."
+    except Exception as e:
+        return f"Error al crear nota: {e}"
+
 def organizar_archivos_existentes():
     """
     Escanea las carpetas especificadas buscando archivos (no subcarpetas)

@@ -58,6 +58,19 @@ def crear_recordatorio_hora(mensaje, hora_str):
         return f"Error al crear recordatorio: {e}"
 
 
+def iniciar_notificaciones_salud():
+    """Inicia las notificaciones periódicas sutiles de hidratación y estiramiento."""
+
+    def aviso_hidratacion():
+        _mostrar_notificacion("Amo, es hora de beber un poco de agua. Manténgase hidratado.", "Salud - Hidratación")
+
+    def aviso_estiramiento():
+        _mostrar_notificacion("Amo, le sugiero tomarse un momento para estirar y descansar la vista.", "Salud - Estiramiento")
+
+    schedule.every(60).minutes.do(aviso_hidratacion)
+    schedule.every(120).minutes.do(aviso_estiramiento)
+    print("--- Módulo de salud (Escudo de Rubén) activado ---")
+
 def _correr_scheduler():
     """Hilo en segundo plano que revisa las tareas programadas continuamente."""
     while True:
@@ -65,6 +78,7 @@ def _correr_scheduler():
         time.sleep(1)
 
 # Iniciamos el hilo del scheduler al importar este módulo
+iniciar_notificaciones_salud()
 _hilo_scheduler = threading.Thread(target=_correr_scheduler, daemon=True)
 _hilo_scheduler.start()
 print("--- Sistema de recordatorios de Salomé iniciado ---")
