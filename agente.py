@@ -2,6 +2,7 @@ import os
 from openai import OpenAI
 from dotenv import load_dotenv
 import json
+import re
 import herramientas
 
 # Cargamos configuración
@@ -68,21 +69,19 @@ NUNCA devuelvas texto fuera del JSON. Si razonas, hazlo mentalmente sin imprimir
 """
 
 def limpiar_respuesta_json(respuesta):
-    """Limpia la respuesta de la IA por si incluye etiquetas markdown como ```json"""
+    """Extrae y limpia la respuesta JSON de la IA ignorando texto extra como 'thought' y etiquetas markdown."""
     texto = respuesta.strip()
-    if texto.startswith("```json"):
-        texto = texto[7:]
-    elif texto.startswith("```"):
-        texto = texto[3:]
-
-    if texto.endswith("```"):
-        texto = texto[:-3]
 
     # Limpiamos etiquetas think si las hay
     if "</think>" in texto:
         texto = texto.split("</think>")[-1].strip()
 
-    return texto.strip()
+    # Extraer estrictamente lo que está entre el primer '{' o '[' y el último '}' o ']'
+    match = re.search(r'(\{.*\}|\[.*\])', texto, re.DOTALL)
+    if match:
+        return match.group(1)
+
+    return texto
 
 def procesar_mensaje(mensaje_usuario):
     global _historial
