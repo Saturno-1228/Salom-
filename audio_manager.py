@@ -2,19 +2,30 @@ import os
 
 # Solución para Windows Python 3.8+: Cargar las DLLs de CUDA (cublas, cudnn) desde el entorno virtual (venv)
 if os.name == 'nt':
-    # Obtenemos la ruta base del entorno (site-packages) donde están instalados los paquetes de nvidia
-    import site
-    import glob
+    import sys
 
-    # site.getsitepackages() nos da la lista de directorios de paquetes (normalmente site-packages)
-    # Buscamos todas las carpetas 'nvidia/*/bin' dentro de site-packages para añadir sus DLLs
-    for site_package_dir in site.getsitepackages():
-        nvidia_bins = glob.glob(os.path.join(site_package_dir, 'nvidia', '*', 'bin'))
-        for bin_dir in nvidia_bins:
-            try:
-                os.add_dll_directory(bin_dir)
-            except Exception as e:
-                pass # Ignorar si hay algún problema con un directorio específico
+    # Usamos sys.path porque site.getsitepackages() a veces falla en entornos virtuales de Windows
+    for path in sys.path:
+        # Buscamos directorios que terminen en "site-packages"
+        if path.endswith("site-packages") and os.path.isdir(path):
+            # Formamos las rutas manuales comunes de nvidia
+            nvidia_dir = os.path.join(path, "nvidia")
+            if os.path.exists(nvidia_dir):
+                for subdir in os.listdir(nvidia_dir):
+                    bin_dir = os.path.join(nvidia_dir, subdir, "bin")
+                    if os.path.isdir(bin_dir):
+                        try:
+                            os.add_dll_directory(bin_dir)
+                        except Exception:
+                            pass
+
+            # Algunos binarios pueden estar en ctranslate2/bin
+            ct2_bin_dir = os.path.join(path, "ctranslate2", "bin")
+            if os.path.isdir(ct2_bin_dir):
+                try:
+                    os.add_dll_directory(ct2_bin_dir)
+                except Exception:
+                    pass
 
 import sounddevice as sd
 import soundfile as sf
