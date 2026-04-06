@@ -16,7 +16,7 @@ ctk.set_default_color_theme("dark-blue")  # Tema oscuro por defecto
 # --- VARIABLES GLOBALES PARA LA GUI ---
 root = None
 gui_visible = False
-chat_history_text = None
+chat_history_view = None
 icons = {}
 terminal_text = None
 quick_panel_frame = None
@@ -65,17 +65,35 @@ def load_icons():
         print(f"Error loading icons: {e}")
 
 def update_chat_history(role, text):
-    if chat_history_text:
-        chat_history_text.configure(state="normal")
+    if chat_history_view:
+        # Colores
+        bg_user = "#FFD1DC"
+        fg_user = "#101010"
+        bg_bot = "#1A1A1A"
+        fg_bot = "#E0E0E0"
+        bg_sys = "transparent"
+        fg_sys = "#A0A0A0"
+
+        # Crear contenedor para el mensaje que ocupe todo el ancho
+        msg_container = ctk.CTkFrame(chat_history_view, fg_color="transparent")
+        msg_container.pack(fill="x", pady=5)
+
         if role == "user":
-            chat_history_text.insert(tk.END, f"Tú: {text}\n\n", "user")
+            bubble = ctk.CTkFrame(msg_container, fg_color=bg_user, corner_radius=20)
+            bubble.pack(side="right", padx=(50, 10))
+            lbl = ctk.CTkLabel(bubble, text=text, text_color=fg_user, font=("Segoe UI", 16), justify="right", wraplength=400)
+            lbl.pack(padx=15, pady=10)
         elif role == "bot":
-            chat_history_text.insert(tk.END, "Salomé: ", "bot_name")
-            chat_history_text.insert(tk.END, f"{text}\n\n", "bot_text")
+            bubble = ctk.CTkFrame(msg_container, fg_color=bg_bot, corner_radius=20)
+            bubble.pack(side="left", padx=(10, 50))
+            lbl = ctk.CTkLabel(bubble, text=text, text_color=fg_bot, font=("Segoe UI", 16), justify="left", wraplength=400)
+            lbl.pack(padx=15, pady=10)
         elif role == "system":
-            chat_history_text.insert(tk.END, f"[Sistema]: {text}\n\n", "system")
-        chat_history_text.see(tk.END)
-        chat_history_text.configure(state="disabled")
+            lbl = ctk.CTkLabel(msg_container, text=f"[Sistema]: {text}", text_color=fg_sys, font=("Segoe UI", 14, "italic"), justify="center", wraplength=500)
+            lbl.pack(pady=5)
+
+        # Hacer scroll automático hacia abajo
+        chat_history_view.after(10, chat_history_view._parent_canvas.yview_moveto, 1.0)
 
 def update_pomodoro_hud():
     if lbl_pomodoro_hud:
@@ -137,12 +155,14 @@ def toggle_gui():
 
 def toggle_quick_panel():
     if quick_panel_frame.winfo_ismapped():
-        quick_panel_frame.pack_forget()
+        quick_panel_frame.place_forget()
     else:
-        quick_panel_frame.pack(fill="both", expand=True, pady=(10, 10), before=input_frame)
+        # Posicionar el panel justo encima del botón '+' (bottom-left)
+        # Ajustar dimensiones del panel si es necesario para que sea "pequeño y elegante"
+        quick_panel_frame.place(relx=0.03, rely=0.9, anchor="sw", width=450, height=350)
 
 def crear_gui():
-    global root, gui_visible, chat_history_text, terminal_text, lbl_pomodoro_hud
+    global root, gui_visible, chat_history_view, terminal_text, lbl_pomodoro_hud
 
     root = ctk.CTk()
     root.title("Salomé - Interfaz de Control")
@@ -195,20 +215,13 @@ def crear_gui():
     chat_history_frame = ctk.CTkFrame(chat_view, fg_color=color_input, corner_radius=12)
     chat_history_frame.pack(fill="both", expand=True, pady=(0, 20))
 
-    chat_history_text = ctk.CTkTextbox(
+    # Usar un CTkScrollableFrame para las burbujas de chat
+    global chat_history_view
+    chat_history_view = ctk.CTkScrollableFrame(
         chat_history_frame,
-        font=font_base,
-        fg_color="transparent",
-        text_color=color_texto,
-        wrap="word"
+        fg_color="transparent"
     )
-    chat_history_text.pack(fill="both", expand=True, padx=15, pady=15)
-
-    chat_history_text.tag_config("user", foreground="#FFFFFF")
-    chat_history_text.tag_config("bot_name", foreground=color_nombre_bot)
-    chat_history_text.tag_config("bot_text", foreground="#FFFFFF")
-    chat_history_text.tag_config("system", foreground=color_texto_oscuro)
-    chat_history_text.configure(state="disabled")
+    chat_history_view.pack(fill="both", expand=True, padx=15, pady=15)
 
     # Command Drawer (Cajón de Herramientas)
     global quick_panel_frame
@@ -222,41 +235,65 @@ def crear_gui():
     tabview_cmds = ctk.CTkTabview(quick_panel_frame, fg_color="transparent", text_color=color_texto, segmented_button_fg_color=color_fondo_main, segmented_button_selected_color=color_acento, segmented_button_selected_hover_color=color_acento_hover)
     tabview_cmds.pack(fill="both", expand=True, padx=10, pady=(0, 10))
 
-    tabview_cmds.add("Limpieza")
-    tabview_cmds.add("Administración")
-    tabview_cmds.add("Bienestar")
-    tabview_cmds.add("Terminal (Logs)")
+    tabview_cmds.add("  Limpieza  ")
+    tabview_cmds.add("  Administración  ")
+    tabview_cmds.add("  Bienestar  ")
+    tabview_cmds.add("  Terminal (Logs)  ")
 
-    def create_cmd_btn(parent, text, command_text):
-        return ctk.CTkButton(
+    def create_cmd_btn(parent, text, command_text, icon_text=""):
+        display_text = f"{icon_text} {text}" if icon_text else text
+        btn = ctk.CTkButton(
             parent,
-            text=text,
-            font=font_base,
+            text=display_text,
+            font=("Segoe UI", 14),
             fg_color=color_fondo_main,
             hover_color=color_acento,
             text_color=color_texto,
-            height=40,
+            height=60, # Hacerlos un poco más cuadrados
             corner_radius=8,
             command=lambda c=command_text: [chat_entry.delete(0, tk.END), chat_entry.insert(0, c), on_enter()]
         )
+        return btn
+
+    # Función auxiliar para poblar con grilla
+    def populate_grid(frame, buttons_data, cols=2):
+        frame.columnconfigure(tuple(range(cols)), weight=1)
+        for i, (text, cmd, icon) in enumerate(buttons_data):
+            row = i // cols
+            col = i % cols
+            btn = create_cmd_btn(frame, text, cmd, icon)
+            btn.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
 
     # Limpieza
-    frame_limpieza = ctk.CTkScrollableFrame(tabview_cmds.tab("Limpieza"), fg_color="transparent")
+    frame_limpieza = ctk.CTkScrollableFrame(tabview_cmds.tab("  Limpieza  "), fg_color="transparent")
     frame_limpieza.pack(fill="both", expand=True)
-    create_cmd_btn(frame_limpieza, "Vaciar papelera", "vaciar papelera").pack(pady=5, padx=10, fill="x")
-    create_cmd_btn(frame_limpieza, "Limpiar escritorio", "limpiar escritorio").pack(pady=5, padx=10, fill="x")
+    limpieza_btns = [
+        ("Papelera", "vaciar papelera", "🗑️"),
+        ("Escritorio", "limpiar escritorio", "🧹")
+    ]
+    populate_grid(frame_limpieza, limpieza_btns, cols=2)
 
     # Administración
-    frame_admin = ctk.CTkScrollableFrame(tabview_cmds.tab("Administración"), fg_color="transparent")
+    frame_admin = ctk.CTkScrollableFrame(tabview_cmds.tab("  Administración  "), fg_color="transparent")
     frame_admin.pack(fill="both", expand=True)
-    create_cmd_btn(frame_admin, "Reporte de Salud", "reporte de salud").pack(pady=5, padx=10, fill="x")
-    create_cmd_btn(frame_admin, "Procesos Pesados", "listar procesos pesados").pack(pady=5, padx=10, fill="x")
-    create_cmd_btn(frame_admin, "Actualizar Bot", "actualizar bot").pack(pady=5, padx=10, fill="x")
+    admin_btns = [
+        ("Salud", "reporte de salud", "🩺"),
+        ("Procesos", "listar procesos pesados", "📊"),
+        ("Actualizar", "actualizar bot", "🔄")
+    ]
+    populate_grid(frame_admin, admin_btns, cols=2)
 
     # Bienestar y Pomodoro Integrado
-    frame_bienestar = ctk.CTkScrollableFrame(tabview_cmds.tab("Bienestar"), fg_color="transparent")
+    frame_bienestar = ctk.CTkScrollableFrame(tabview_cmds.tab("  Bienestar  "), fg_color="transparent")
     frame_bienestar.pack(fill="both", expand=True)
-    create_cmd_btn(frame_bienestar, "Modo Pánico", "modo pánico").pack(pady=5, padx=10, fill="x")
+
+    # Contenedor para botones de bienestar
+    btn_bienestar_frame = ctk.CTkFrame(frame_bienestar, fg_color="transparent")
+    btn_bienestar_frame.pack(fill="x", pady=(0, 10))
+    bienestar_btns = [
+        ("Pánico", "modo pánico", "🛑")
+    ]
+    populate_grid(btn_bienestar_frame, bienestar_btns, cols=2)
 
     pomodoro_frame = ctk.CTkFrame(frame_bienestar, fg_color=color_fondo_main, corner_radius=8)
     pomodoro_frame.pack(fill="x", pady=10, padx=10)
@@ -293,7 +330,7 @@ def crear_gui():
     ctk.CTkButton(btn_pomo_frame, text="⏹", font=font_bold, width=40, command=reset_pomodoro, fg_color="#333").pack(side="left", padx=5)
 
     # Terminal / Logs
-    terminal_text = ctk.CTkTextbox(tabview_cmds.tab("Terminal (Logs)"), font=("Consolas", 14), fg_color=color_fondo_main, text_color=color_texto, wrap="word")
+    terminal_text = ctk.CTkTextbox(tabview_cmds.tab("  Terminal (Logs)  "), font=("Consolas", 14), fg_color=color_fondo_main, text_color=color_texto, wrap="word")
     terminal_text.pack(fill="both", expand=True)
     terminal_text.configure(state="disabled")
     sys.stdout = StdoutRedirector(terminal_text)
