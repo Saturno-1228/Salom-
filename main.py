@@ -1,455 +1,122 @@
 import os
 import sys
-import tkinter as tk
-import customtkinter as ctk
-from PIL import Image
-from pynput import keyboard
 import threading
+from flask import Flask, render_template, request, jsonify
+from flask_socketio import SocketIO, emit
+import logging
+
 import audio_manager  # Sus oídos
 import organizador    # Sus manos automáticas
 import agente         # Su nuevo cerebro
 
-# Configuración de CustomTkinter
-ctk.set_appearance_mode("dark")
-ctk.set_default_color_theme("dark-blue")  # Tema oscuro por defecto
+app = Flask(__name__)
+app.config['SECRET_KEY'] = 'salome_secret_key'
+socketio = SocketIO(app, async_mode='eventlet')
 
-# --- VARIABLES GLOBALES PARA LA GUI ---
-root = None
-gui_visible = False
-chat_history_view = None
-icons = {}
-terminal_text = None
-quick_panel_frame = None
-lbl_pomodoro_hud = None
+# Deshabilitar logs de werkzeug para no saturar
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.ERROR)
 
-# Variables de estado del Pomodoro
-pomodoro_running = {"state": False}
-pomodoro_time = {"seconds": 25 * 60} # 25 minutos
-
-class StdoutRedirector:
-    """Redirige sys.stdout a la caja de texto de terminal de la GUI"""
-    def __init__(self, text_widget):
-        self.text_widget = text_widget
-        self.original_stdout = sys.stdout
+class SocketIORedirector:
+    """Redirige sys.stdout a los logs de la Web UI"""
+    def __init__(self, original_stdout):
+        self.original_stdout = original_stdout
 
     def write(self, string):
         self.original_stdout.write(string)
-        if self.text_widget and root:
-            # Insertar en la caja de texto de forma segura desde cualquier hilo
-            root.after(0, self._append_text, string)
-
-    def _append_text(self, string):
-        self.text_widget.configure(state="normal")
-        self.text_widget.insert(tk.END, string)
-        self.text_widget.see(tk.END)
-        self.text_widget.configure(state="disabled")
+        if string.strip():
+            socketio.emit('log_message', {'text': string})
 
     def flush(self):
         self.original_stdout.flush()
 
-def load_icons():
-    """Carga los iconos para la interfaz"""
-    icon_path = os.path.join(os.path.dirname(__file__), "assets", "icons")
-    try:
-        icons["chat"] = ctk.CTkImage(light_image=Image.open(os.path.join(icon_path, "chat.png")), dark_image=Image.open(os.path.join(icon_path, "chat.png")), size=(20, 20))
-        icons["commands"] = ctk.CTkImage(light_image=Image.open(os.path.join(icon_path, "commands.png")), dark_image=Image.open(os.path.join(icon_path, "commands.png")), size=(20, 20))
-        icons["admin"] = ctk.CTkImage(light_image=Image.open(os.path.join(icon_path, "admin.png")), dark_image=Image.open(os.path.join(icon_path, "admin.png")), size=(20, 20))
-        icons["wellness"] = ctk.CTkImage(light_image=Image.open(os.path.join(icon_path, "wellness.png")), dark_image=Image.open(os.path.join(icon_path, "wellness.png")), size=(20, 20))
-        icons["finance"] = ctk.CTkImage(light_image=Image.open(os.path.join(icon_path, "finance.png")), dark_image=Image.open(os.path.join(icon_path, "finance.png")), size=(20, 20))
-        icons["send"] = ctk.CTkImage(light_image=Image.open(os.path.join(icon_path, "send.png")), dark_image=Image.open(os.path.join(icon_path, "send.png")), size=(20, 20))
-        icons["menu"] = ctk.CTkImage(light_image=Image.open(os.path.join(icon_path, "menu.png")), dark_image=Image.open(os.path.join(icon_path, "menu.png")), size=(24, 24))
-        # Si no existe mic_icon, usamos un recuadro o lo creamos
-        if os.path.exists(os.path.join(icon_path, "plus.png")):
-            icons["plus"] = ctk.CTkImage(light_image=Image.open(os.path.join(icon_path, "plus.png")), dark_image=Image.open(os.path.join(icon_path, "plus.png")), size=(24, 24))
-    except Exception as e:
-        print(f"Error loading icons: {e}")
+# Guardamos el original
+original_stdout = sys.stdout
+# sys.stdout = SocketIORedirector(original_stdout) # Activamos si queremos logs en la web
+# sys.stderr = SocketIORedirector(sys.stderr)
 
-def update_chat_history(role, text):
-    if chat_history_view:
-        # Colores
-        bg_user = "#FFD1DC"
-        fg_user = "#101010"
-        bg_bot = "#1A1A1A"
-        fg_bot = "#E0E0E0"
-        bg_sys = "transparent"
-        fg_sys = "#A0A0A0"
+@app.route('/')
+def index():
+    return render_template('index.html')
 
-        # Crear contenedor para el mensaje que ocupe todo el ancho
-        msg_container = ctk.CTkFrame(chat_history_view, fg_color="transparent")
-        msg_container.pack(fill="x", pady=5)
+@socketio.on('text_message')
+def handle_text_message(data):
+    texto = data.get('text', '')
+    if texto.strip():
+        # Usar el agente para procesar el comando de texto
+        def tarea():
+            try:
+                respuesta = agente.procesar_mensaje(texto)
+                if respuesta:
+                    socketio.emit('bot_response', {'text': respuesta})
+                else:
+                    socketio.emit('bot_response', {'text': "He procesado la orden, pero no tengo una respuesta verbal."})
+            except Exception as e:
+                socketio.emit('system_message', {'text': f"Error procesando: {e}"})
 
-        if role == "user":
-            bubble = ctk.CTkFrame(msg_container, fg_color=bg_user, corner_radius=20)
-            bubble.pack(side="right", padx=(50, 10))
-            lbl = ctk.CTkLabel(bubble, text=text, text_color=fg_user, font=("Segoe UI", 16), justify="right", wraplength=400)
-            lbl.pack(padx=15, pady=10)
-        elif role == "bot":
-            bubble = ctk.CTkFrame(msg_container, fg_color=bg_bot, corner_radius=20)
-            bubble.pack(side="left", padx=(10, 50))
-            lbl = ctk.CTkLabel(bubble, text=text, text_color=fg_bot, font=("Segoe UI", 16), justify="left", wraplength=400)
-            lbl.pack(padx=15, pady=10)
-        elif role == "system":
-            lbl = ctk.CTkLabel(msg_container, text=f"[Sistema]: {text}", text_color=fg_sys, font=("Segoe UI", 14, "italic"), justify="center", wraplength=500)
-            lbl.pack(pady=5)
+        socketio.start_background_task(tarea)
 
-        # Hacer scroll automático hacia abajo
-        chat_history_view.after(10, chat_history_view._parent_canvas.yview_moveto, 1.0)
+@socketio.on('start_audio')
+def handle_start_audio():
+    audio_manager.iniciar_grabacion()
 
-def update_pomodoro_hud():
-    if lbl_pomodoro_hud:
-        mins, secs = divmod(pomodoro_time["seconds"], 60)
-        lbl_pomodoro_hud.configure(text=f"🍅 {mins:02d}:{secs:02d}")
-
-def procesar_orden_audio():
-    # Evitar bloqueos en GUI
+@socketio.on('stop_audio')
+def handle_stop_audio():
     def tarea():
         archivo = audio_manager.detener_grabacion()
         if not archivo:
-            root.after(0, update_chat_history, "system", "No se detectó audio.")
+            socketio.emit('system_message', {'text': "No se detectó audio."})
             return
+
+        socketio.emit('system_message', {'text': "Transcribiendo..."})
         texto = audio_manager.transcribir_voz(archivo)
         if texto:
-            root.after(0, procesar_orden_texto, texto)
+            socketio.emit('system_message', {'text': f"Transcripción: {texto}"})
+            # Procesar el texto como si se hubiera escrito
+            try:
+                respuesta = agente.procesar_mensaje(texto)
+                if respuesta:
+                    socketio.emit('bot_response', {'text': respuesta})
+                else:
+                    socketio.emit('bot_response', {'text': "He procesado la orden, pero no tengo una respuesta."})
+            except Exception as e:
+                socketio.emit('system_message', {'text': f"Error procesando: {e}"})
         else:
-            root.after(0, update_chat_history, "system", "No pude entender el audio.")
+            socketio.emit('system_message', {'text': "No pude entender el audio."})
 
-    threading.Thread(target=tarea, daemon=True).start()
+    socketio.start_background_task(tarea)
 
-def toggle_mic():
-    # Asume que si ya estamos grabando, lo detenemos y procesamos
-    if audio_manager._recording:
-        root.btn_mic.configure(fg_color="#212121") # Color normal
-        procesar_orden_audio()
-    else:
-        root.btn_mic.configure(fg_color="#C2185B") # Color grabando
-        audio_manager.iniciar_grabacion()
-
-def procesar_orden_texto(texto):
-    if texto.strip():
-        # Muestra en el historial
-        root.after(0, update_chat_history, "user", texto)
-        # Usar el agente para procesar el comando de texto
-        try:
-            respuesta = agente.procesar_mensaje(texto)
-            if respuesta:
-                root.after(0, update_chat_history, "bot", respuesta)
-            else:
-                root.after(0, update_chat_history, "bot", "He procesado la orden, pero no tengo una respuesta verbal.")
-        except Exception as e:
-            root.after(0, update_chat_history, "system", f"Error procesando: {e}")
-
-def toggle_gui():
-    global gui_visible, root
-    if root is None:
-        return
-
-    if gui_visible:
-        root.withdraw()
-        gui_visible = False
-    else:
-        root.deiconify()
-        root.focus_force()
-        if hasattr(root, "chat_entry"):
-            root.chat_entry.focus_set()
-        gui_visible = True
-
-def toggle_quick_panel():
-    if quick_panel_frame.winfo_ismapped():
-        quick_panel_frame.place_forget()
-    else:
-        # Posicionar el panel justo encima del botón '+' (bottom-left)
-        # Ajustar dimensiones del panel si es necesario para que sea "pequeño y elegante"
-        quick_panel_frame.place(relx=0.03, rely=0.9, anchor="sw", width=450, height=350)
-
-def crear_gui():
-    global root, gui_visible, chat_history_view, terminal_text, lbl_pomodoro_hud
-
-    root = ctk.CTk()
-    root.title("Salomé - Interfaz de Control")
-    root.geometry("1100x800")
-
-    load_icons()
-
-    # Estética Pastel-Noir
-    color_fondo_main = "#101010"    # Fondo Negro Profundo
-    color_acento = "#FFD1DC"        # Rosa Pastel Suave
-    color_acento_hover = "#F48FB1"
-    color_nombre_bot = "#FFD1DC"
-    color_texto = "#E0E0E0"
-    color_texto_oscuro = "#A0A0A0"
-    color_input = "#1A1A1A"         # Gris muy oscuro para cards
-    font_base = ("Segoe UI", 18)
-    font_bold = ("Segoe UI", 18, "bold")
-    font_title = ("Segoe UI", 24, "bold")
-
-    root.configure(fg_color=color_fondo_main)
-
-    # Ocultar por defecto
-    root.withdraw()
-    gui_visible = False
-    root.protocol("WM_DELETE_WINDOW", lambda: root.withdraw())
-    root.bind("<Escape>", lambda e: toggle_gui() if gui_visible else None)
-
-    # --- CONTENEDOR PRINCIPAL ---
-    main_container = ctk.CTkFrame(root, fg_color="transparent", corner_radius=0)
-    main_container.pack(fill="both", expand=True)
-
-    # Top Bar con Título y HUD de Pomodoro
-    top_bar = ctk.CTkFrame(main_container, fg_color="transparent", height=60, corner_radius=0)
-    top_bar.pack(side="top", fill="x", padx=30, pady=(20, 0))
-
-    lbl_title = ctk.CTkLabel(top_bar, text="SALOMÉ", font=("Segoe UI", 28, "bold"), text_color=color_nombre_bot)
-    lbl_title.pack(side="left")
-
-    lbl_pomodoro_hud = ctk.CTkLabel(top_bar, text="", font=("Segoe UI", 20, "bold"), text_color=color_acento)
-    lbl_pomodoro_hud.pack(side="right")
-
-    # Área Central
-    content_area = ctk.CTkFrame(main_container, fg_color="transparent")
-    content_area.pack(fill="both", expand=True, padx=30, pady=(10, 30))
-
-    chat_view = ctk.CTkFrame(content_area, fg_color="transparent")
-    chat_view.pack(fill="both", expand=True)
-
-    # Historial de Chat
-    chat_history_frame = ctk.CTkFrame(chat_view, fg_color=color_input, corner_radius=12)
-    chat_history_frame.pack(fill="both", expand=True, pady=(0, 20))
-
-    # Usar un CTkScrollableFrame para las burbujas de chat
-    global chat_history_view
-    chat_history_view = ctk.CTkScrollableFrame(
-        chat_history_frame,
-        fg_color="transparent"
-    )
-    chat_history_view.pack(fill="both", expand=True, padx=15, pady=15)
-
-    # Command Drawer (Cajón de Herramientas)
-    global quick_panel_frame
-    quick_panel_frame = ctk.CTkFrame(chat_view, fg_color=color_input, corner_radius=12, height=350)
-
-    panel_header = ctk.CTkFrame(quick_panel_frame, fg_color="transparent")
-    panel_header.pack(fill="x", padx=10, pady=(10, 0))
-    ctk.CTkLabel(panel_header, text="Cajón de Herramientas", font=("Segoe UI", 16, "bold"), text_color=color_acento).pack(side="left")
-    ctk.CTkButton(panel_header, text="X", font=("Segoe UI", 16, "bold"), fg_color="transparent", hover_color="#333333", text_color=color_texto, width=30, height=30, command=toggle_quick_panel).pack(side="right")
-
-    tabview_cmds = ctk.CTkTabview(quick_panel_frame, fg_color="transparent", text_color=color_texto, segmented_button_fg_color=color_fondo_main, segmented_button_selected_color=color_acento, segmented_button_selected_hover_color=color_acento_hover)
-    tabview_cmds.pack(fill="both", expand=True, padx=10, pady=(0, 10))
-
-    tabview_cmds.add("  Limpieza  ")
-    tabview_cmds.add("  Administración  ")
-    tabview_cmds.add("  Bienestar  ")
-    tabview_cmds.add("  Terminal (Logs)  ")
-
-    def create_cmd_btn(parent, text, command_text, icon_text=""):
-        display_text = f"{icon_text} {text}" if icon_text else text
-        btn = ctk.CTkButton(
-            parent,
-            text=display_text,
-            font=("Segoe UI", 14),
-            fg_color=color_fondo_main,
-            hover_color=color_acento,
-            text_color=color_texto,
-            height=60, # Hacerlos un poco más cuadrados
-            corner_radius=8,
-            command=lambda c=command_text: [chat_entry.delete(0, tk.END), chat_entry.insert(0, c), on_enter()]
-        )
-        return btn
-
-    # Función auxiliar para poblar con grilla
-    def populate_grid(frame, buttons_data, cols=2):
-        frame.columnconfigure(tuple(range(cols)), weight=1)
-        for i, (text, cmd, icon) in enumerate(buttons_data):
-            row = i // cols
-            col = i % cols
-            btn = create_cmd_btn(frame, text, cmd, icon)
-            btn.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
-
-    # Limpieza
-    frame_limpieza = ctk.CTkScrollableFrame(tabview_cmds.tab("  Limpieza  "), fg_color="transparent")
-    frame_limpieza.pack(fill="both", expand=True)
-    limpieza_btns = [
-        ("Papelera", "vaciar papelera", "🗑️"),
-        ("Escritorio", "limpiar escritorio", "🧹")
-    ]
-    populate_grid(frame_limpieza, limpieza_btns, cols=2)
-
-    # Administración
-    frame_admin = ctk.CTkScrollableFrame(tabview_cmds.tab("  Administración  "), fg_color="transparent")
-    frame_admin.pack(fill="both", expand=True)
-    admin_btns = [
-        ("Salud", "reporte de salud", "🩺"),
-        ("Procesos", "listar procesos pesados", "📊"),
-        ("Actualizar", "actualizar bot", "🔄")
-    ]
-    populate_grid(frame_admin, admin_btns, cols=2)
-
-    # Bienestar y Pomodoro Integrado
-    frame_bienestar = ctk.CTkScrollableFrame(tabview_cmds.tab("  Bienestar  "), fg_color="transparent")
-    frame_bienestar.pack(fill="both", expand=True)
-
-    # Contenedor para botones de bienestar
-    btn_bienestar_frame = ctk.CTkFrame(frame_bienestar, fg_color="transparent")
-    btn_bienestar_frame.pack(fill="x", pady=(0, 10))
-    bienestar_btns = [
-        ("Pánico", "modo pánico", "🛑")
-    ]
-    populate_grid(btn_bienestar_frame, bienestar_btns, cols=2)
-
-    pomodoro_frame = ctk.CTkFrame(frame_bienestar, fg_color=color_fondo_main, corner_radius=8)
-    pomodoro_frame.pack(fill="x", pady=10, padx=10)
-    ctk.CTkLabel(pomodoro_frame, text="Pomodoro", font=font_bold, text_color=color_texto).pack(pady=(10, 0))
-    lbl_pomodoro_time = ctk.CTkLabel(pomodoro_frame, text="25:00", font=("Segoe UI", 32, "bold"), text_color=color_acento)
-    lbl_pomodoro_time.pack(pady=5)
-
-    def update_pomodoro():
-        if pomodoro_running["state"] and pomodoro_time["seconds"] > 0:
-            pomodoro_time["seconds"] -= 1
-            mins, secs = divmod(pomodoro_time["seconds"], 60)
-            lbl_pomodoro_time.configure(text=f"{mins:02d}:{secs:02d}")
-            update_pomodoro_hud()
-            root.after(1000, update_pomodoro)
-        elif pomodoro_time["seconds"] == 0:
-            pomodoro_running["state"] = False
-            update_pomodoro_hud()
-
-    def start_pomodoro():
-        if not pomodoro_running["state"]:
-            pomodoro_running["state"] = True
-            update_pomodoro()
-            update_pomodoro_hud()
-
-    def reset_pomodoro():
-        pomodoro_running["state"] = False
-        pomodoro_time["seconds"] = 25 * 60
-        lbl_pomodoro_time.configure(text="25:00")
-        update_pomodoro_hud()
-
-    btn_pomo_frame = ctk.CTkFrame(pomodoro_frame, fg_color="transparent")
-    btn_pomo_frame.pack(pady=(0, 10))
-    ctk.CTkButton(btn_pomo_frame, text="▶", font=font_bold, width=40, command=start_pomodoro, fg_color=color_acento).pack(side="left", padx=5)
-    ctk.CTkButton(btn_pomo_frame, text="⏹", font=font_bold, width=40, command=reset_pomodoro, fg_color="#333").pack(side="left", padx=5)
-
-    # Terminal / Logs
-    terminal_text = ctk.CTkTextbox(tabview_cmds.tab("  Terminal (Logs)  "), font=("Consolas", 14), fg_color=color_fondo_main, text_color=color_texto, wrap="word")
-    terminal_text.pack(fill="both", expand=True)
-    terminal_text.configure(state="disabled")
-    sys.stdout = StdoutRedirector(terminal_text)
-    sys.stderr = StdoutRedirector(terminal_text)
-
-    # --- Input Area ---
-    global input_frame
-    input_frame = ctk.CTkFrame(chat_view, fg_color="transparent")
-    input_frame.pack(fill="x")
-
-    btn_quick_actions = ctk.CTkButton(
-        input_frame,
-        text="+",
-        font=("Segoe UI", 24, "bold"),
-        fg_color=color_input,
-        hover_color=color_acento,
-        text_color=color_acento,
-        height=50,
-        width=50,
-        corner_radius=12,
-        command=toggle_quick_panel
-    )
-    btn_quick_actions.pack(side="left", padx=(0, 10))
-
-    chat_entry = ctk.CTkEntry(
-        input_frame,
-        font=font_base,
-        fg_color=color_input,
-        text_color="#FFFFFF",
-        border_width=1,
-        border_color="#333333",
-        height=50,
-        corner_radius=12,
-        placeholder_text="Escribe un comando o petición a Salomé..."
-    )
-    chat_entry.pack(side="left", fill="x", expand=True, padx=(0, 10))
-    root.chat_entry = chat_entry
-
-    def on_enter(event=None):
-        texto = chat_entry.get()
-        if texto:
-            chat_entry.delete(0, tk.END)
-            threading.Thread(target=procesar_orden_texto, args=(texto,), daemon=True).start()
-
-    chat_entry.bind("<Return>", on_enter)
-
-    # Micrófono Button
-    root.btn_mic = ctk.CTkButton(
-        input_frame,
-        text="🎤",
-        font=font_bold,
-        fg_color=color_input,
-        hover_color=color_acento,
-        text_color=color_acento,
-        height=50,
-        width=50,
-        corner_radius=12,
-        command=toggle_mic
-    )
-    root.btn_mic.pack(side="left", padx=(0, 10))
-
-    btn_send = ctk.CTkButton(
-        input_frame,
-        text="Enviar",
-        font=font_bold,
-        fg_color=color_acento,
-        hover_color=color_acento_hover,
-        text_color="#101010",
-        height=50,
-        width=100,
-        corner_radius=12,
-        command=on_enter
-    )
-    btn_send.pack(side="right")
-
-    update_chat_history("system", "Amo Rubén, la Refactorización Pastel-Noir ha concluido.\n\nHe añadido el Escudo de Rubén (notificaciones y Pomodoro), nuevas herramientas de administración y búsqueda, e integrado el Command Drawer y mi micrófono.\nEstoy lista para servirle.")
-
-    root.mainloop()
+def iniciar_servidor():
+    print("--- Iniciando Gateway Dashboard en http://127.0.0.1:18789 ---")
+    # Utilizamos eventlet que es compatible con async de SocketIO y Windows
+    socketio.run(app, host='127.0.0.1', port=18789)
 
 # --- INICIO DEL SISTEMA ---
 if __name__ == "__main__":
-    print("--- Salomé está despertando (Modo Texto/GUI) ---")
+    print("--- Salomé está despertando (Modo Web Gateway) ---")
     
     # 1. Organizamos los archivos existentes primero
-    organizador.organizar_archivos_existentes()
+    try:
+        organizador.organizar_archivos_existentes()
+    except Exception as e:
+        print(f"Error inicializando organizador: {e}")
 
     # 2. Activamos la vigilancia automática de archivos
-    observador = organizador.iniciar_vigilancia()
-    
-    # 3. Activamos la escucha de teclado
-    print("--- Listo. Presione F4 para abrir/cerrar la consola de texto de Salomé. ---")
-    print("--- Presione Ctrl+C en esta terminal para apagar el sistema completamente. ---")
-
-    tecla_f4_presionada = False
-
-    def on_press(key):
-        global tecla_f4_presionada, root
-        if key == keyboard.Key.f4:
-            if not tecla_f4_presionada:
-                tecla_f4_presionada = True
-                if root is not None:
-                    # Llamar a toggle_gui desde el hilo principal de Tkinter de forma segura
-                    root.after(0, toggle_gui)
-
-    def on_release(key):
-        global tecla_f4_presionada
-        if key == keyboard.Key.f4:
-            tecla_f4_presionada = False
-
-    # Iniciar el listener de pynput en segundo plano
-    listener = keyboard.Listener(on_press=on_press, on_release=on_release)
-    listener.start()
-
-    # Iniciar la GUI en el hilo principal (Tkinter requiere estar en el hilo principal)
+    observador = None
     try:
-        crear_gui()
+        observador = organizador.iniciar_vigilancia()
+    except Exception as e:
+        print(f"Error iniciando vigilancia: {e}")
+    
+    print("--- Listo. Abra http://127.0.0.1:18789 en su navegador ---")
+    print("--- Presione Ctrl+C en esta terminal para apagar el sistema. ---")
+
+    # Iniciar el servidor web
+    try:
+        iniciar_servidor()
     except KeyboardInterrupt:
         pass
     finally:
         print("\nApagando a Salomé...")
-        observador.stop()
-        listener.stop()
+        if observador:
+            observador.stop()

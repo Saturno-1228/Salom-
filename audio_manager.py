@@ -23,13 +23,10 @@ from faster_whisper import WhisperModel
 import queue
 
 print("--- Inicializando oídos de Salomé (Procesamiento Local) ---")
-# Usamos el modelo 'base' que es extremadamente rápido en su RTX 4080
+# Usamos el modelo 'base' que es extremadamente rápido.
+# El usuario indicó que prefiere CPU para evitar errores con CUDA.
 model_size = "base" 
-try:
-    model = WhisperModel(model_size, device="cuda", compute_type="float16")
-except Exception:
-    print("CUDA no disponible en este entorno, cambiando a CPU...")
-    model = WhisperModel(model_size, device="cpu", compute_type="int8")
+model = WhisperModel(model_size, device="cpu", compute_type="int8")
 
 _q = queue.Queue()
 _recording = False
