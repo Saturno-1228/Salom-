@@ -31,7 +31,7 @@ FG_COLOR_BOT = "#FFFFFF"
 class SalomeApp(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("Salomé - OpenClaw")
+        self.title("Salomé")
         self.geometry("450x700")
         self.configure(fg_color=BG_COLOR_APP)
         self.grid_columnconfigure(0, weight=1)
@@ -91,7 +91,8 @@ class SalomeApp(ctk.CTk):
             height=40,
             corner_radius=20,
             border_color="#2d3039",
-            fg_color="#16181d"
+            fg_color="#16181d",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=14)
         )
         self.entry.grid(row=0, column=1, sticky="ew")
         self.entry.bind("<Return>", lambda event: self.send_message())
@@ -140,16 +141,16 @@ class SalomeApp(ctk.CTk):
             self.tabview.add(" Bienestar ")
 
             # Limpieza
-            ctk.CTkButton(self.tabview.tab(" Limpieza "), text="🗑️ Vaciar Papelera", anchor="w", fg_color="#1f2937", hover_color="#374151", command=lambda: self._cmd_from_drawer("vaciar papelera")).pack(fill="x", pady=5)
-            ctk.CTkButton(self.tabview.tab(" Limpieza "), text="🧹 Limpiar Escritorio", anchor="w", fg_color="#1f2937", hover_color="#374151", command=lambda: self._cmd_from_drawer("limpiar escritorio")).pack(fill="x", pady=5)
+            ctk.CTkButton(self.tabview.tab(" Limpieza "), text="🗑️ Vaciar Papelera", anchor="w", fg_color="#1f2937", hover_color="#374151", font=ctk.CTkFont(family=FONT_FAMILY, size=14), command=lambda: self._cmd_from_drawer("vaciar papelera")).pack(fill="x", pady=5)
+            ctk.CTkButton(self.tabview.tab(" Limpieza "), text="🧹 Limpiar Escritorio", anchor="w", fg_color="#1f2937", hover_color="#374151", font=ctk.CTkFont(family=FONT_FAMILY, size=14), command=lambda: self._cmd_from_drawer("limpiar escritorio")).pack(fill="x", pady=5)
 
             # Admin
-            ctk.CTkButton(self.tabview.tab(" Admin "), text="🩺 Reporte de Salud", anchor="w", fg_color="#1f2937", hover_color="#374151", command=lambda: self._cmd_from_drawer("reporte de salud")).pack(fill="x", pady=5)
-            ctk.CTkButton(self.tabview.tab(" Admin "), text="📊 Procesos Pesados", anchor="w", fg_color="#1f2937", hover_color="#374151", command=lambda: self._cmd_from_drawer("listar procesos pesados")).pack(fill="x", pady=5)
-            ctk.CTkButton(self.tabview.tab(" Admin "), text="🔄 Actualizar Bot", anchor="w", fg_color="#1f2937", hover_color="#374151", command=lambda: self._cmd_from_drawer("actualizar bot")).pack(fill="x", pady=5)
+            ctk.CTkButton(self.tabview.tab(" Admin "), text="🩺 Reporte de Salud", anchor="w", fg_color="#1f2937", hover_color="#374151", font=ctk.CTkFont(family=FONT_FAMILY, size=14), command=lambda: self._cmd_from_drawer("reporte de salud")).pack(fill="x", pady=5)
+            ctk.CTkButton(self.tabview.tab(" Admin "), text="📊 Procesos Pesados", anchor="w", fg_color="#1f2937", hover_color="#374151", font=ctk.CTkFont(family=FONT_FAMILY, size=14), command=lambda: self._cmd_from_drawer("listar procesos pesados")).pack(fill="x", pady=5)
+            ctk.CTkButton(self.tabview.tab(" Admin "), text="🔄 Actualizar Bot", anchor="w", fg_color="#1f2937", hover_color="#374151", font=ctk.CTkFont(family=FONT_FAMILY, size=14), command=lambda: self._cmd_from_drawer("actualizar bot")).pack(fill="x", pady=5)
 
             # Bienestar
-            ctk.CTkButton(self.tabview.tab(" Bienestar "), text="🛑 Modo Pánico", anchor="w", fg_color="#ef4444", hover_color="#dc2626", text_color="white", command=lambda: self._cmd_from_drawer("modo pánico")).pack(fill="x", pady=5)
+            ctk.CTkButton(self.tabview.tab(" Bienestar "), text="🛑 Modo Pánico", anchor="w", fg_color="#ef4444", hover_color="#dc2626", text_color="white", font=ctk.CTkFont(family=FONT_FAMILY, size=14), command=lambda: self._cmd_from_drawer("modo pánico")).pack(fill="x", pady=5)
 
         # Posicionar el drawer encima del input frame.
         # Ajustamos `relx`, `rely` para colocarlo arriba del input.
@@ -174,7 +175,7 @@ class SalomeApp(ctk.CTk):
                 msg_container,
                 text=text,
                 text_color="#9ca3af",
-                font=ctk.CTkFont(family=FONT_FAMILY, slant="italic", size=12),
+                font=ctk.CTkFont(family=FONT_FAMILY, slant="italic", size=14),
                 justify="center"
             )
             lbl.pack(anchor="center")
