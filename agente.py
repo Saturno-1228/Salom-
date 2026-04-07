@@ -82,7 +82,7 @@ NUNCA devuelvas texto fuera del JSON. Si razonas, hazlo mentalmente sin imprimir
 """
 
 def detectar_intencion_local(mensaje):
-    """Analiza palabras clave para ejecutar comandos locales sin usar la IA y ahorrar tokens."""
+    """Analiza palabras clave y expresiones regulares para ejecutar comandos locales sin usar la IA y ahorrar tokens."""
     texto = mensaje.lower()
 
     # Comandos directos y sencillos
@@ -91,13 +91,56 @@ def detectar_intencion_local(mensaje):
     if "limpiar" in texto and "escritorio" in texto:
         return {"herramienta": "limpiar_escritorio", "args": {}, "respuesta": "Limpiando su escritorio, Amo."}
     if "silenciar" in texto and ("pc" in texto or "computadora" in texto or "ordenador" in texto):
-        return {"herramienta": "silenciar_pc", "args": {}, "respuesta": "Silenciando el sistema, Amo."}
+        return {"herramienta": "silenciar_pc", "args": {}, "respuesta": "Silenciando el sistema por usted, Amo."}
     if "modo pánico" in texto or "modo panico" in texto:
-        return {"herramienta": "modo_panico", "args": {}, "respuesta": "¡Modo pánico activado! Cerrando navegadores y silenciando el PC."}
+        return {"herramienta": "modo_panico", "args": {}, "respuesta": "¡Modo pánico activado de inmediato, Amo! Cerrando navegadores y silenciando el PC."}
     if "reporte de salud" in texto or ("uso" in texto and ("cpu" in texto or "ram" in texto)):
-         return {"herramienta": "obtener_reporte_salud", "args": {}, "respuesta": "Consultando los signos vitales del sistema, Amo."}
+         return {"herramienta": "obtener_reporte_salud", "args": {}, "respuesta": "Consultando los signos vitales del sistema, mi Amo."}
     if "actualizar bot" in texto or "git pull" in texto:
         return {"herramienta": "actualizar_bot", "args": {}, "respuesta": "Iniciando actualización desde el repositorio, Amo."}
+    if "abrir panel de control" in texto or "panel de control" in texto:
+        return {"herramienta": "abrir_panel_control", "args": {}, "respuesta": "Abriendo el panel de control, mi Amo."}
+    if "estado del bot" in texto or "tu estado" in texto:
+        return {"herramienta": "mostrar_estado_bot", "args": {}, "respuesta": "Mostrando mi estado actual, Amo."}
+    if "organizar archivos" in texto:
+        return {"herramienta": "organizar_archivos", "args": {}, "respuesta": "Forzando la organización de los archivos, Amo."}
+    if "procesos pesados" in texto:
+        return {"herramienta": "listar_procesos_pesados", "args": {}, "respuesta": "Listando los procesos que más consumen, mi Amo."}
+
+    # Búsquedas con expresiones regulares para capturar argumentos
+
+    # Cerrar programa
+    match_cerrar = re.search(r'cerrar (el )?programa ([\w\.]+)', texto)
+    if match_cerrar:
+        programa = match_cerrar.group(2)
+        return {"herramienta": "cerrar_programa", "args": {"nombre": programa}, "respuesta": f"Cerrando el programa {programa}, Amo."}
+
+    # Gestionar notificaciones
+    match_notif = re.search(r'(activar|desactivar|silenciar) notificaciones', texto)
+    if match_notif:
+        accion = match_notif.group(1)
+        estado = "off" if accion in ["desactivar", "silenciar"] else "on"
+        return {"herramienta": "gestionar_notificaciones", "args": {"estado": estado}, "respuesta": f"Procediendo a {accion} las notificaciones, Amo."}
+
+    # Apagar PC en X minutos
+    match_apagar = re.search(r'apagar (el )?pc en (\d+) minutos', texto)
+    if match_apagar:
+        minutos = int(match_apagar.group(2))
+        return {"herramienta": "apagar_pc_tiempo", "args": {"minutos": minutos}, "respuesta": f"Programando el apagado de la PC en {minutos} minutos, Amo."}
+
+    # Abrir / Buscar en Youtube
+    match_youtube = re.search(r'(busca|buscar) (.+) en youtube', texto)
+    if match_youtube:
+        consulta = match_youtube.group(2)
+        return {"herramienta": "abrir_youtube", "args": {"consulta": consulta}, "respuesta": f"Abriendo YouTube para buscar '{consulta}', Amo."}
+    elif "abrir youtube" in texto:
+        return {"herramienta": "abrir_youtube", "args": {"consulta": None}, "respuesta": "Abriendo YouTube, mi Amo."}
+
+    # Abrir / Buscar en Brave (Navegador)
+    match_brave = re.search(r'(busca|buscar) (.+) en brave', texto)
+    if match_brave:
+        consulta = match_brave.group(2)
+        return {"herramienta": "buscar_en_brave", "args": {"consulta": consulta}, "respuesta": f"Buscando '{consulta}' en Brave, Amo."}
 
     return None
 
